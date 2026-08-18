@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from taurus.data.schemas import PriceBar
+from taurus.data.schemas import BarInterval, PriceBar
 from taurus.data.sqlite_repository import SQLitePriceBarRepository
 
 
@@ -18,6 +18,7 @@ def test_save_and_get_price_bar(tmp_path):
         close=182.75,
         volume=42_000_000,
         source="test",
+        interval=BarInterval.ONE_DAY,
     )
 
     repository.save_bars([bar])

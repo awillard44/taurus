@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from taurus.data.ingestion import ingest_daily_bars
-from taurus.data.schemas import PriceBar
+from taurus.data.schemas import BarInterval, PriceBar
 
 
 def test_ingest_daily_bars_fetches_and_saves_data():
@@ -15,6 +15,7 @@ def test_ingest_daily_bars_fetches_and_saves_data():
             close=182.75,
             volume=42_000_000,
             source="test",
+            interval=BarInterval.ONE_DAY,
         )
     ]
 

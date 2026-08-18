@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from taurus.data.schemas import PriceBar
+from taurus.data.schemas import BarInterval, PriceBar
 from taurus.features.returns import (
     calculate_return_1d,
     calculate_return_5d,
@@ -17,6 +17,7 @@ def test_calculate_return_1d():
         close=100.0,
         volume=1_000_000,
         source="test",
+        interval=BarInterval.ONE_DAY,
     )
 
     current_bar = PriceBar(
@@ -28,6 +29,7 @@ def test_calculate_return_1d():
         close=103.0,
         volume=1_100_000,
         source="test",
+        interval=BarInterval.ONE_DAY,
     )
 
     result = calculate_return_1d(previous_bar, current_bar)
@@ -44,6 +46,7 @@ def test_calculate_negative_return_1d():
         close=100.0,
         volume=1_000_000,
         source="test",
+        interval=BarInterval.ONE_DAY,
     )
 
     current_bar = PriceBar(
@@ -55,6 +58,7 @@ def test_calculate_negative_return_1d():
         close=98.0,
         volume=1_100_000,
         source="test",
+        interval=BarInterval.ONE_DAY,
     )
 
     result = calculate_return_1d(previous_bar, current_bar)
@@ -72,6 +76,7 @@ def test_calculate_return_5d():
         close=100.0,
         volume=1_000_000,
         source="test",
+        interval=BarInterval.ONE_DAY,
     )
 
     current_bar = PriceBar(
@@ -83,6 +88,7 @@ def test_calculate_return_5d():
         close=110.0,
         volume=1_200_000,
         source="test",
+        interval=BarInterval.ONE_DAY,
     )
 
     result = calculate_return_5d(five_days_ago_bar, current_bar)
@@ -99,6 +105,7 @@ def test_calculate_return_20d():
         close=100.0,
         volume=1_000_000,
         source="test",
+        interval=BarInterval.ONE_DAY,
     )
 
     current_bar = PriceBar(
@@ -110,6 +117,7 @@ def test_calculate_return_20d():
         close=120.0,
         volume=1_200_000,
         source="test",
+        interval=BarInterval.ONE_DAY,
     )
 
     result = calculate_return_20d(twenty_days_ago_bar, current_bar)

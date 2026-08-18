@@ -2,7 +2,7 @@ from datetime import datetime
 
 import yfinance as yf
 
-from taurus.data.schemas import PriceBar
+from taurus.data.schemas import BarInterval, PriceBar
 
 class YahooFinanceProvider:
     # Market-data provider backed by Yahoo Finance
@@ -34,6 +34,7 @@ class YahooFinanceProvider:
                 close=float(row["Close"]),
                 volume=int(row["Volume"]),
                 source="yahoo",
+                interval=BarInterval.ONE_DAY,
             )
             bars.append(bar
             )

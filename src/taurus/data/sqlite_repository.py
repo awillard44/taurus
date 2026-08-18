@@ -2,7 +2,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from taurus.data.schemas import PriceBar
+from taurus.data.schemas import BarInterval, PriceBar
 
 
 class SQLitePriceBarRepository:
@@ -28,8 +28,9 @@ class SQLitePriceBarRepository:
                     close REAL NOT NULL,
                     volume REAL NOT NULL,
                     source TEXT NOT NULL,
+                    interval TEXT NOT NULL,
                     ingested_at TEXT NOT NULL,
-                    PRIMARY KEY (symbol, timestamp, source)
+                    PRIMARY KEY (symbol, timestamp, source, interval)
                 )
                 """
             )
@@ -47,6 +48,7 @@ class SQLitePriceBarRepository:
                 bar.close,
                 bar.volume,
                 bar.source,
+                bar.interval.value,
                 ingested_at,
             )
             for bar in bars
@@ -64,9 +66,10 @@ class SQLitePriceBarRepository:
                     close,
                     volume,
                     source,
+                    interval,
                     ingested_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 rows,
             )
@@ -83,7 +86,8 @@ class SQLitePriceBarRepository:
                     low,
                     close,
                     volume,
-                    source
+                    source,
+                    interval
                 FROM price_bars
                 WHERE symbol = ?
                 ORDER BY timestamp ASC
@@ -101,6 +105,7 @@ class SQLitePriceBarRepository:
                 close=row[5],
                 volume=row[6],
                 source=row[7],
+                interval=BarInterval(row[8]),
             )
             for row in rows
         ]

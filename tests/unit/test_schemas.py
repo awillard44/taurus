@@ -2,7 +2,7 @@ from datetime import datetime
 
 import pytest
 
-from taurus.data.schemas import PriceBar
+from taurus.data.schemas import BarInterval, PriceBar
 
 
 def test_price_bar_stores_market_data():
@@ -15,11 +15,14 @@ def test_price_bar_stores_market_data():
         close=182.75,
         volume=42_000_000,
         source="test",
+        interval=BarInterval.ONE_DAY,
     )
 
     assert bar.symbol == "NVDA"
     assert bar.close == 182.75
     assert bar.volume == 42_000_000
+    assert bar.interval == BarInterval.ONE_DAY
+
 
 
 def test_price_bar_is_immutable():
@@ -32,6 +35,7 @@ def test_price_bar_is_immutable():
         close=182.75,
         volume=42_000_000,
         source="test",
+        interval=BarInterval.ONE_DAY,
     )
 
     with pytest.raises(Exception):
