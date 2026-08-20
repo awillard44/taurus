@@ -1,9 +1,19 @@
 from statistics import stdev
 
-def calculate_volatility_20d(daily_returns: list[float]) -> float:
-    # Calculate the standard deviation of 20-day returns
+def calculate_volatility(
+    returns: list[float],
+    period: int,
+) -> float:
+    # Calculate return volatility over a specified period
 
-    if len(daily_returns) != 20:
-        raise ValueError("expected exactly 20 daily returns")
+    if period < 2:
+        raise ValueError("Period must be at least two.")
 
-    return stdev(daily_returns)
+    if len(returns) < period:
+        raise ValueError(
+            f"Expected at least {period} returns."
+        )
+
+    window = returns[-period:]
+
+    return stdev(window)

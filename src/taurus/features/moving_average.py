@@ -1,15 +1,17 @@
-def calculate_sma_20(closing_prices: list[float]) -> float:
-    # Calculate the simple moving average of 20 closing prices
+def calculate_sma(
+    closing_prices: list[float],
+    period: int,
+) -> float:
+    # Calculate a simple moving average over a specified period
 
-    if len(closing_prices) != 20:
-        raise ValueError("Expected exactly 20 closing prices.")
+    if period <= 0:
+        raise ValueError("Period must be greater than zero.")
 
-    return sum(closing_prices) / len(closing_prices)
+    if len(closing_prices) < period:
+        raise ValueError(
+            f"Expected at least {period} closing prices."
+        )
 
-def calculate_sma_50(closing_prices: list[float]) -> float:
-    # Calculate the simple moving average of 50 closing prices
+    window = closing_prices[-period:]
 
-    if len(closing_prices) != 50:
-        raise ValueError("Expected exactly 50 closing prices")
-
-    return sum(closing_prices) / len(closing_prices)
+    return sum(window) / period

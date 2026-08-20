@@ -1,125 +1,41 @@
-from datetime import datetime
+import pytest
+from taurus.features.returns import calculate_return
 
-from taurus.data.schemas import BarInterval, PriceBar
-from taurus.features.returns import (
-    calculate_return_1d,
-    calculate_return_5d,
-    calculate_return_20d,
-)
+def test_calculate_return_one_period():
+    closing_prices = [100.0, 103.0]
 
-def test_calculate_return_1d():
-    previous_bar = PriceBar(
-        symbol="NVDA",
-        timestamp=datetime(2026, 8, 17),
-        open=100.0,
-        high=102.0,
-        low=99.0,
-        close=100.0,
-        volume=1_000_000,
-        source="test",
-        interval=BarInterval.ONE_DAY,
-    )
-
-    current_bar = PriceBar(
-        symbol="NVDA",
-        timestamp=datetime(2026, 8, 18),
-        open=101.0,
-        high=104.0,
-        low=100.0,
-        close=103.0,
-        volume=1_100_000,
-        source="test",
-        interval=BarInterval.ONE_DAY,
-    )
-
-    result = calculate_return_1d(previous_bar, current_bar)
+    result = calculate_return(closing_prices, periods=1)
 
     assert result == 0.03
 
-def test_calculate_negative_return_1d():
-    previous_bar = PriceBar(
-        symbol="NVDA",
-        timestamp=datetime(2026, 8, 17),
-        open=100.0,
-        high=102.0,
-        low=99.0,
-        close=100.0,
-        volume=1_000_000,
-        source="test",
-        interval=BarInterval.ONE_DAY,
-    )
+def test_calculate_return_five_periods():
+    closing_prices = [
+        100.0,
+        101.0,
+        102.0,
+        104.0,
+        107.0,
+        110.0,
+    ]
 
-    current_bar = PriceBar(
-        symbol="NVDA",
-        timestamp=datetime(2026, 8, 18),
-        open=99.0,
-        high=100.0,
-        low=97.0,
-        close=98.0,
-        volume=1_100_000,
-        source="test",
-        interval=BarInterval.ONE_DAY,
-    )
+    result = calculate_return(closing_prices, periods=5)
 
-    result = calculate_return_1d(previous_bar, current_bar)
+    assert result == 0.10
+
+
+def test_calculate_negative_return():
+    closing_prices = [100.0, 98.0]
+
+    result = calculate_return(closing_prices, periods=1)
 
     assert result == -0.02
 
 
-def test_calculate_return_5d():
-    five_days_ago_bar = PriceBar(
-        symbol="NVDA",
-        timestamp=datetime(2026, 8, 10),
-        open=100.0,
-        high=102.0,
-        low=99.0,
-        close=100.0,
-        volume=1_000_000,
-        source="test",
-        interval=BarInterval.ONE_DAY,
-    )
+def test_calculate_return_requires_positive_periods():
+    with pytest.raises(ValueError):
+        calculate_return([100.0, 101.0], periods=0)
 
-    current_bar = PriceBar(
-        symbol="NVDA",
-        timestamp=datetime(2026, 8, 17),
-        open=108.0,
-        high=111.0,
-        low=107.0,
-        close=110.0,
-        volume=1_200_000,
-        source="test",
-        interval=BarInterval.ONE_DAY,
-    )
 
-    result = calculate_return_5d(five_days_ago_bar, current_bar)
-
-    assert result == 0.10
-
-def test_calculate_return_20d():
-    twenty_days_ago_bar = PriceBar(
-        symbol="NVDA",
-        timestamp=datetime(2026, 7, 20),
-        open=100.0,
-        high=102.0,
-        low=99.0,
-        close=100.0,
-        volume=1_000_000,
-        source="test",
-        interval=BarInterval.ONE_DAY,
-    )
-
-    current_bar = PriceBar(
-        symbol="NVDA",
-        timestamp=datetime(2026, 8, 17),
-        open=118.0,
-        high=121.0,
-        low=117.0,
-        close=120.0,
-        volume=1_200_000,
-        source="test",
-        interval=BarInterval.ONE_DAY,
-    )
-
-    result = calculate_return_20d(twenty_days_ago_bar, current_bar)
-
-    assert result == 0.20
+def test_calculate_return_requires_enough_prices():
+    with pytest.raises(ValueError):
+        calculate_return([100.0, 101.0], periods=5)

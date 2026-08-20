@@ -1,38 +1,18 @@
-from taurus.data.schemas import PriceBar
-
-
-def calculate_return_1d(
-    previous_bar: PriceBar,
-    current_bar: PriceBar,
+def calculate_return(
+    closing_prices: list[float],
+    periods: int,
 ) -> float:
-    """Calculate the return between two consecutive daily price bars."""
+    """Calculate return over a specified number of periods."""
 
-    daily_return = (
-        current_bar.close - previous_bar.close
-    ) / previous_bar.close
+    if periods <= 0:
+        raise ValueError("Periods must be greater than zero.")
 
-    return daily_return
+    if len(closing_prices) < periods + 1:
+        raise ValueError(
+            f"Expected at least {periods + 1} closing prices."
+        )
 
-def calculate_return_5d(
-    five_days_ago_bar: PriceBar,
-    current_bar: PriceBar,
-) -> float:
-    """Calculate the return over five trading days."""
+    starting_price = closing_prices[-(periods + 1)]
+    current_price = closing_prices[-1]
 
-    five_day_return = (
-        current_bar.close - five_days_ago_bar.close
-    ) / five_days_ago_bar.close
-
-    return five_day_return
-
-def calculate_return_20d(
-    twenty_days_ago_bar: PriceBar,
-    current_bar: PriceBar,
-) -> float:
-    """Calculate the return over twenty trading days."""
-
-    twenty_day_return = (
-        current_bar.close - twenty_days_ago_bar.close
-    ) / twenty_days_ago_bar.close
-
-    return twenty_day_return
+    return (current_price - starting_price) / starting_price
