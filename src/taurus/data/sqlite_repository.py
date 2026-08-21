@@ -6,7 +6,7 @@ from taurus.data.schemas import BarInterval, PriceBar
 
 
 class SQLitePriceBarRepository:
-    """SQLite-backed storage for Taurus price bars."""
+    # SQLite-backed storage for Taurus price bars.
 
     def __init__(self, database_path: str | Path):
         self.database_path = Path(database_path)
@@ -74,7 +74,11 @@ class SQLitePriceBarRepository:
                 rows,
             )
 
-    def get_bars(self, symbol: str) -> list[PriceBar]:
+    def get_bars(
+            self,
+            symbol: str,
+            interval: BarInterval,
+        ) -> list[PriceBar]:
         with self._connect() as connection:
             rows = connection.execute(
                 """
@@ -89,10 +93,10 @@ class SQLitePriceBarRepository:
                     source,
                     interval
                 FROM price_bars
-                WHERE symbol = ?
+                WHERE symbol = ? AND interval = ?
                 ORDER BY timestamp ASC
                 """,
-                (symbol,),
+                (symbol, interval.value),
             ).fetchall()
 
         return [

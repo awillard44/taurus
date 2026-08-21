@@ -13,12 +13,15 @@ database_path.parent.mkdir(exist_ok=True)
 provider = YahooFinanceProvider()
 repository = SQLitePriceBarRepository(database_path)
 
-count = ingest_daily_bars(
-    provider=provider,
-    repository=repository,
-    symbol="NVDA",
-    start=datetime(2026, 8, 1),
-    end=datetime(2026, 8, 18),
-)
+symbols = ["NVDA", "SPY"]
 
-print(f"Ingested {count} NVDA price bars.")
+for symbol in symbols:
+    count = ingest_daily_bars(
+        provider=provider,
+        repository=repository,
+        symbol=symbol,
+        start=datetime(2026, 5, 1),
+        end=datetime(2026, 8, 21),
+    )
+
+    print(f"Ingested {count} {symbol} price bars.")
