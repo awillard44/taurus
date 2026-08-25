@@ -1,4 +1,7 @@
+import pytest
+
 from datetime import datetime, timedelta
+
 
 from taurus.data.schemas import BarInterval
 from taurus.environment.trading_environment import TaurusTradingEnvironment
@@ -76,6 +79,14 @@ def test_run_agent_episode_completes_episode():
     assert result.steps == 2
     assert result.final_portfolio_value == 1_200.0
     assert result.total_reward > 0
+    assert result.initial_portfolio_value == 1_000.0
+    assert result.final_portfolio_value == 1_200.0
+    assert result.total_return == 0.20
+    assert result.portfolio_values == (
+        1_000.0,
+        1_100.0,
+        1_200.0,
+    )
 
 
 def test_compare_baselines_runs_each_agent():
@@ -168,3 +179,52 @@ def test_run_agent_episodes_aggregates_results():
     assert result.mean_final_portfolio_value == 1_200.0
     assert result.mean_total_reward > 0
     assert result.reward_stdev == 0.0
+
+def test_run_agent_episode_tracks_drawdown():
+    start = datetime(2026, 8, 25)
+
+    market_states = [
+        build_market_state(
+            timestamp=start,
+            close=100.0,
+        ),
+        build_market_state(
+            timestamp=start + timedelta(days=1),
+            close=110.0,
+        ),
+        build_market_state(
+            timestamp=start + timedelta(days=2),
+            close=90.0,
+        ),
+    ]
+
+    initial_portfolio = PortfolioState(
+        cash=1_000.0,
+        shares=0.0,
+        asset_price=100.0,
+        portfolio_value=1_000.0,
+    )
+
+    environment = TaurusTradingEnvironment(
+        market_states=market_states,
+        initial_portfolio=initial_portfolio,
+    )
+
+    agent = AlwaysBuyAgent()
+
+    result = run_agent_episode(
+        environment=environment,
+        agent=agent,
+    )
+
+    assert result.portfolio_values == (
+        1_000.0,
+        1_100.0,
+        900.0,
+    )
+
+    assert result.total_return == pytest.approx(-0.10)
+
+    assert result.max_drawdown == pytest.approx(
+        200.0 / 1_100.0
+    )
