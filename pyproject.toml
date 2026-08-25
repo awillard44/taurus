@@ -9,6 +9,7 @@ description = "Experimental adaptive market intelligence system"
 requires-python = ">=3.11"
 dependencies = [
     "yfinance>=0.2",
+    "gymnasium>=1.0",
 ]
 
 [project.optional-dependencies]
