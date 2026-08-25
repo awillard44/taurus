@@ -1,5 +1,5 @@
+from taurus.environment.state import EnvironmentState
 from taurus.simulation.actions import TradingAction
-from taurus.simulation.portfolio import PortfolioState
 
 
 class AlwaysBuyAgent:
@@ -7,9 +7,9 @@ class AlwaysBuyAgent:
 
     def predict(
         self,
-        portfolio: PortfolioState,
+        state: EnvironmentState,
     ) -> TradingAction:
-        if portfolio.cash > 0:
+        if state.portfolio.cash > 0:
             return TradingAction.BUY
 
         return TradingAction.HOLD

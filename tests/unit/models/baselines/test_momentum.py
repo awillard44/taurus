@@ -1,14 +1,19 @@
 from datetime import datetime
 
 from taurus.data.schemas import BarInterval
+from taurus.environment.state import EnvironmentState
 from taurus.features.market_state import MarketState
 from taurus.models.baselines.momentum import MomentumAgent
 from taurus.simulation.actions import TradingAction
 from taurus.simulation.portfolio import PortfolioState
 
 
-def build_market(return_5: float) -> MarketState:
-    return MarketState(
+def build_state(
+    return_5: float,
+    cash: float,
+    shares: float,
+) -> EnvironmentState:
+    market = MarketState(
         symbol="NVDA",
         timestamp=datetime(2026, 8, 25),
         interval=BarInterval.ONE_DAY,
@@ -25,20 +30,30 @@ def build_market(return_5: float) -> MarketState:
         relative_return=0.0,
     )
 
+    portfolio = PortfolioState(
+        cash=cash,
+        shares=shares,
+        asset_price=200.0,
+        portfolio_value=cash + (shares * 200.0),
+    )
+
+    return EnvironmentState(
+        market=market,
+        portfolio=portfolio,
+        step_index=0,
+    )
+
 
 def test_momentum_agent_buys_on_positive_momentum():
     agent = MomentumAgent()
 
-    market = build_market(return_5=0.05)
-
-    portfolio = PortfolioState(
+    state = build_state(
+        return_5=0.05,
         cash=1_000.0,
         shares=0.0,
-        asset_price=200.0,
-        portfolio_value=1_000.0,
     )
 
-    action = agent.predict(market, portfolio)
+    action = agent.predict(state)
 
     assert action == TradingAction.BUY
 
@@ -46,32 +61,26 @@ def test_momentum_agent_buys_on_positive_momentum():
 def test_momentum_agent_sells_on_negative_momentum():
     agent = MomentumAgent()
 
-    market = build_market(return_5=-0.05)
-
-    portfolio = PortfolioState(
+    state = build_state(
+        return_5=-0.05,
         cash=0.0,
         shares=5.0,
-        asset_price=200.0,
-        portfolio_value=1_000.0,
     )
 
-    action = agent.predict(market, portfolio)
+    action = agent.predict(state)
 
     assert action == TradingAction.SELL
 
 
-def test_momentum_agent_holds_when_no_action_is_needed():
+def test_momentum_agent_holds_when_momentum_is_neutral():
     agent = MomentumAgent()
 
-    market = build_market(return_5=0.0)
-
-    portfolio = PortfolioState(
+    state = build_state(
+        return_5=0.0,
         cash=1_000.0,
         shares=0.0,
-        asset_price=200.0,
-        portfolio_value=1_000.0,
     )
 
-    action = agent.predict(market, portfolio)
+    action = agent.predict(state)
 
     assert action == TradingAction.HOLD
