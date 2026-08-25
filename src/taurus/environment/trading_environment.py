@@ -11,7 +11,7 @@ from taurus.simulation.step import step_portfolio
 
 
 class TaurusTradingEnvironment(gym.Env):
-    """Gymnasium-compatible trading environment for Taurus."""
+    # Gymnasium-compatible trading environment for Taurus
 
     metadata = {"render_modes": []}
 
@@ -90,6 +90,7 @@ class TaurusTradingEnvironment(gym.Env):
             state=self.state.portfolio,
             action=trading_action,
             next_asset_price=next_market.close,
+            timestamp=current_market.timestamp,
         )
 
         self.current_index += 1
@@ -107,7 +108,9 @@ class TaurusTradingEnvironment(gym.Env):
 
         truncated = False
 
-        info = {}
+        info = {
+            "trade": step_result.trade,
+        }
 
         return (
             self._get_observation(),

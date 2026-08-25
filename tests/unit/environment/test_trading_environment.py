@@ -97,6 +97,12 @@ def test_trading_environment_reset_restores_initial_state():
     assert environment.state.portfolio.cash == 1_000.0
     assert environment.state.portfolio.shares == 0.0
 
+    _, _, _, _, info = environment.step(
+        TradingAction.HOLD
+    )
+
+    assert info["trade"] is None
+
 
 def test_trading_environment_buy_then_price_increases():
     environment = build_test_environment()
@@ -106,6 +112,12 @@ def test_trading_environment_buy_then_price_increases():
     observation, reward, terminated, truncated, info = environment.step(
         TradingAction.BUY
     )
+
+    assert info["trade"] is not None
+    assert info["trade"].action == TradingAction.BUY
+    assert info["trade"].price == 200.0
+    assert info["trade"].shares == 5.0
+    assert info["trade"].value == 1_000.0
 
     assert environment.current_index == 1
 
@@ -117,7 +129,6 @@ def test_trading_environment_buy_then_price_increases():
     assert reward == 0.05
     assert terminated is False
     assert truncated is False
-    assert info == {}
 
     assert observation.shape == (13,)
 

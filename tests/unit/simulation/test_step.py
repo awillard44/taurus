@@ -1,5 +1,7 @@
 import pytest
 
+from datetime import datetime
+
 from taurus.simulation.actions import TradingAction
 from taurus.simulation.portfolio import PortfolioState
 from taurus.simulation.step import step_portfolio
@@ -17,6 +19,7 @@ def test_step_portfolio_buy_then_price_increases():
         state=state,
         action=TradingAction.BUY,
         next_asset_price=210.0,
+        timestamp=datetime(2026, 8, 25),
     )
 
     assert result.portfolio.cash == 0.0
@@ -24,6 +27,7 @@ def test_step_portfolio_buy_then_price_increases():
     assert result.portfolio.asset_price == 210.0
     assert result.portfolio.portfolio_value == 1_050.0
     assert result.reward == pytest.approx(0.05)
+    assert result.trade is not None
 
 
 def test_step_portfolio_hold_then_price_changes():
@@ -38,6 +42,7 @@ def test_step_portfolio_hold_then_price_changes():
         state=state,
         action=TradingAction.HOLD,
         next_asset_price=190.0,
+        timestamp=datetime(2026, 8, 25),
     )
 
     assert result.portfolio.cash == 100.0
@@ -45,3 +50,4 @@ def test_step_portfolio_hold_then_price_changes():
     assert result.portfolio.asset_price == 190.0
     assert result.portfolio.portfolio_value == 1_050.0
     assert result.reward == pytest.approx(-50.0 / 1_100.0)
+    assert result.trade is None

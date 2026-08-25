@@ -1,5 +1,92 @@
 from statistics import stdev, mean
 
+from taurus.simulation.closed_trade import ClosedTrade
+
+
+def calculate_trade_count(
+    closed_trades: list[ClosedTrade] | tuple[ClosedTrade, ...],
+) -> int:
+    # Calculate the number of completed trades
+
+    return len(closed_trades)
+
+
+def calculate_win_rate(
+    closed_trades: list[ClosedTrade] | tuple[ClosedTrade, ...],
+) -> float:
+    # Calculate the proportion of completed trades that were profitable
+
+    if not closed_trades:
+        raise ValueError("At least one closed trade is required.")
+
+    winning_trades = sum(
+        trade.realized_pnl > 0
+        for trade in closed_trades
+    )
+
+    return winning_trades / len(closed_trades)
+
+
+def calculate_average_gain(
+    closed_trades: list[ClosedTrade] | tuple[ClosedTrade, ...],
+) -> float:
+    # Calculate average realized P&L among profitable trades
+
+    gains = [
+        trade.realized_pnl
+        for trade in closed_trades
+        if trade.realized_pnl > 0
+    ]
+
+    if not gains:
+        return 0.0
+
+    return mean(gains)
+
+
+def calculate_average_loss(
+    closed_trades: list[ClosedTrade] | tuple[ClosedTrade, ...],
+) -> float:
+    # Calculate average realized P&L among losing trades
+
+    losses = [
+        trade.realized_pnl
+        for trade in closed_trades
+        if trade.realized_pnl < 0
+    ]
+
+    if not losses:
+        return 0.0
+
+    return mean(losses)
+
+
+def calculate_profit_factor(
+    closed_trades: list[ClosedTrade] | tuple[ClosedTrade, ...],
+) -> float:
+    # Calculate gross realized profit divided by gross realized loss
+
+    gross_profit = sum(
+        trade.realized_pnl
+        for trade in closed_trades
+        if trade.realized_pnl > 0
+    )
+
+    gross_loss = abs(
+        sum(
+            trade.realized_pnl
+            for trade in closed_trades
+            if trade.realized_pnl < 0
+        )
+    )
+
+    if gross_loss == 0:
+        raise ValueError(
+            "Profit factor is undefined when there are no realized losses."
+        )
+
+    return gross_profit / gross_loss
+
 
 def calculate_portfolio_volatility(
     portfolio_values: list[float],

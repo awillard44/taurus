@@ -1,15 +1,128 @@
 import pytest
 
+from datetime import datetime
 from statistics import mean, stdev
 
 from taurus.evaluation.metrics import (
+    calculate_average_gain,
+    calculate_average_loss,
     calculate_excess_return,
     calculate_max_drawdown,
     calculate_portfolio_volatility,
+    calculate_profit_factor,
     calculate_sharpe_ratio,
     calculate_sortino_ratio,
     calculate_total_return,
+    calculate_trade_count,
+    calculate_win_rate,
 )
+from taurus.simulation.closed_trade import ClosedTrade
+
+def build_closed_trade(
+    realized_pnl: float,
+) -> ClosedTrade:
+    entry_value = 1_000.0
+    exit_value = entry_value + realized_pnl
+
+    return ClosedTrade(
+        entry_timestamp=datetime(2026, 8, 25),
+        exit_timestamp=datetime(2026, 8, 26),
+        entry_price=100.0,
+        exit_price=exit_value / 10.0,
+        shares=10.0,
+        entry_value=entry_value,
+        exit_value=exit_value,
+        realized_pnl=realized_pnl,
+        return_pct=realized_pnl / entry_value,
+    )
+
+def test_calculate_trade_count():
+    trades = [
+        build_closed_trade(200.0),
+        build_closed_trade(-50.0),
+        build_closed_trade(100.0),
+    ]
+
+    assert calculate_trade_count(trades) == 3
+
+
+def test_calculate_win_rate():
+    trades = [
+        build_closed_trade(200.0),
+        build_closed_trade(-50.0),
+        build_closed_trade(100.0),
+        build_closed_trade(-25.0),
+    ]
+
+    assert calculate_win_rate(trades) == pytest.approx(0.50)
+
+
+def test_calculate_win_rate_requires_closed_trade():
+    with pytest.raises(ValueError):
+        calculate_win_rate([])
+
+
+def test_calculate_average_gain():
+    trades = [
+        build_closed_trade(200.0),
+        build_closed_trade(-50.0),
+        build_closed_trade(100.0),
+    ]
+
+    assert calculate_average_gain(trades) == pytest.approx(150.0)
+
+
+def test_calculate_average_gain_returns_zero_without_winners():
+    trades = [
+        build_closed_trade(-50.0),
+        build_closed_trade(-25.0),
+    ]
+
+    assert calculate_average_gain(trades) == 0.0
+
+
+def test_calculate_average_loss():
+    trades = [
+        build_closed_trade(200.0),
+        build_closed_trade(-50.0),
+        build_closed_trade(-25.0),
+    ]
+
+    assert calculate_average_loss(trades) == pytest.approx(-37.5)
+
+
+def test_calculate_average_loss_returns_zero_without_losers():
+    trades = [
+        build_closed_trade(200.0),
+        build_closed_trade(100.0),
+    ]
+
+    assert calculate_average_loss(trades) == 0.0
+
+
+def test_calculate_profit_factor():
+    trades = [
+        build_closed_trade(200.0),
+        build_closed_trade(-50.0),
+        build_closed_trade(100.0),
+        build_closed_trade(-25.0),
+    ]
+
+    result = calculate_profit_factor(trades)
+
+    assert result == pytest.approx(4.0)
+
+
+def test_calculate_profit_factor_requires_realized_loss():
+    trades = [
+        build_closed_trade(200.0),
+        build_closed_trade(100.0),
+    ]
+
+    with pytest.raises(ValueError):
+        calculate_profit_factor(trades)
+
+
 
 def test_calculate_total_return_positive():
     result = calculate_total_return(

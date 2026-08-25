@@ -14,6 +14,7 @@ from taurus.evaluation.baseline_runner import (
     run_agent_episodes,
 )
 from taurus.models.baselines.always_hold import AlwaysHoldAgent
+from taurus.simulation.actions import TradingAction
 
 
 def build_market_state(
@@ -228,3 +229,105 @@ def test_run_agent_episode_tracks_drawdown():
     assert result.max_drawdown == pytest.approx(
         200.0 / 1_100.0
     )
+
+
+def test_run_agent_episode_records_trades():
+    start = datetime(2026, 8, 25)
+
+    market_states = [
+        build_market_state(
+            timestamp=start,
+            close=100.0,
+        ),
+        build_market_state(
+            timestamp=start + timedelta(days=1),
+            close=110.0,
+        ),
+        build_market_state(
+            timestamp=start + timedelta(days=2),
+            close=120.0,
+        ),
+    ]
+
+    initial_portfolio = PortfolioState(
+        cash=1_000.0,
+        shares=0.0,
+        asset_price=100.0,
+        portfolio_value=1_000.0,
+    )
+
+    environment = TaurusTradingEnvironment(
+        market_states=market_states,
+        initial_portfolio=initial_portfolio,
+    )
+
+    agent = AlwaysBuyAgent()
+
+    result = run_agent_episode(
+        environment=environment,
+        agent=agent,
+    )
+
+    assert len(result.trades) == 1
+    assert result.trades[0].action == TradingAction.BUY
+    assert result.trades[0].price == 100.0
+    assert result.trades[0].shares == 10.0
+    assert result.trades[0].value == 1_000.0
+
+
+def test_run_agent_episode_records_closed_trade():
+    start = datetime(2026, 8, 25)
+
+    market_states = [
+        build_market_state(
+            timestamp=start,
+            close=100.0,
+        ),
+        build_market_state(
+            timestamp=start + timedelta(days=1),
+            close=120.0,
+        ),
+        build_market_state(
+            timestamp=start + timedelta(days=2),
+            close=120.0,
+        ),
+    ]
+
+    initial_portfolio = PortfolioState(
+        cash=1_000.0,
+        shares=0.0,
+        asset_price=100.0,
+        portfolio_value=1_000.0,
+    )
+
+    environment = TaurusTradingEnvironment(
+        market_states=market_states,
+        initial_portfolio=initial_portfolio,
+    )
+
+    class BuyThenSellAgent:
+        def predict(self, state):
+            if state.step_index == 0:
+                return TradingAction.BUY
+
+            return TradingAction.SELL
+
+    agent = BuyThenSellAgent()
+
+    result = run_agent_episode(
+        environment=environment,
+        agent=agent,
+    )
+
+    assert len(result.trades) == 2
+    assert len(result.closed_trades) == 1
+
+    closed = result.closed_trades[0]
+
+    assert closed.entry_price == 100.0
+    assert closed.exit_price == 120.0
+    assert closed.shares == 10.0
+    assert closed.entry_value == 1_000.0
+    assert closed.exit_value == 1_200.0
+    assert closed.realized_pnl == 200.0
+    assert closed.return_pct == pytest.approx(0.20)
