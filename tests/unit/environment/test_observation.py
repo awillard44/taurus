@@ -1,9 +1,13 @@
+import numpy as np
+
 from datetime import datetime
 
 from taurus.data.schemas import BarInterval
 from taurus.environment.observation import build_observation
 from taurus.environment.state import EnvironmentState
 from taurus.features.market_state import MarketState
+from taurus.simulation.portfolio import PortfolioState
+from taurus.environment.observation import build_feature_observation
 from taurus.simulation.portfolio import PortfolioState
 
 
@@ -91,3 +95,86 @@ def test_build_observation_has_expected_length():
     observation = build_observation(state)
 
     assert len(observation) == 13
+
+def test_build_feature_observation():
+    features = {
+        "return_1": 0.01,
+        "rsi_14": 55.0,
+        "adx_14_adx": 25.0,
+    }
+
+    portfolio = PortfolioState(
+        cash=500.0,
+        shares=5.0,
+        asset_price=100.0,
+        portfolio_value=1000.0,
+    )
+
+    observation = build_feature_observation(
+        features=features,
+        portfolio=portfolio,
+    )
+
+    expected = np.asarray(
+        [
+            0.01,
+            55.0,
+            25.0,
+            500.0,
+            5.0,
+            1000.0,
+        ],
+        dtype=np.float32,
+    )
+
+    np.testing.assert_allclose(
+        observation,
+        expected,
+    )
+
+
+def test_build_feature_observation_returns_float32():
+    features = {
+        "return_1": 0.01,
+    }
+
+    portfolio = PortfolioState(
+        cash=1000.0,
+        shares=0.0,
+        asset_price=100.0,
+        portfolio_value=1000.0,
+    )
+
+    observation = build_feature_observation(
+        features=features,
+        portfolio=portfolio,
+    )
+
+    assert observation.dtype == np.float32
+
+
+def test_build_feature_observation_shape_changes_with_features():
+    portfolio = PortfolioState(
+        cash=1000.0,
+        shares=0.0,
+        asset_price=100.0,
+        portfolio_value=1000.0,
+    )
+
+    small_observation = build_feature_observation(
+        features={
+            "a": 1.0,
+        },
+        portfolio=portfolio,
+    )
+
+    large_observation = build_feature_observation(
+        features={
+            "a": 1.0,
+            "b": 2.0,
+            "c": 3.0,
+        },
+        portfolio=portfolio,
+    )
+
+    assert small_observation.shape == (4,)

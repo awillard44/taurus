@@ -4,12 +4,16 @@ from taurus.data.schemas import BarInterval
 from taurus.data.sqlite_repository import SQLitePriceBarRepository
 from taurus.environment.trading_environment import TaurusTradingEnvironment
 from taurus.evaluation.baseline_runner import compare_baselines, run_agent_episodes
-from taurus.features.state_sequence import build_market_state_sequence
+from taurus.environment.feature_state_builder import (
+    build_feature_state_sequence,
+)
+from taurus.features.presets import DEFAULT_FEATURE_SET
 from taurus.models.baselines.always_buy import AlwaysBuyAgent
 from taurus.models.baselines.always_hold import AlwaysHoldAgent
 from taurus.models.baselines.momentum import MomentumAgent
 from taurus.models.baselines.random_agent import RandomAgent
 from taurus.simulation.portfolio import PortfolioState
+
 
 
 database_path = Path("data/taurus.db")
@@ -26,20 +30,22 @@ spy_bars = repository.get_bars(
     BarInterval.ONE_DAY,
 )
 
-market_states = build_market_state_sequence(
+feature_states = build_feature_state_sequence(
     bars=nvda_bars,
     benchmark_bars=spy_bars,
+    feature_set=DEFAULT_FEATURE_SET,
+    minimum_history=50,
 )
 
 initial_portfolio = PortfolioState(
     cash=1_000.0,
     shares=0.0,
-    asset_price=market_states[0].close,
+    asset_price=feature_states[0].market.close,
     portfolio_value=1_000.0,
 )
 
 environment = TaurusTradingEnvironment(
-    market_states=market_states,
+    feature_states=feature_states,
     initial_portfolio=initial_portfolio,
 )
 

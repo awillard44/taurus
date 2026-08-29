@@ -24,6 +24,12 @@ def execute_action(
             trade=None,
         )
 
+    if action == TradingAction.BUY and state.cash <= 0:
+        return ExecutionResult(
+            portfolio=state,
+            trade=None,
+        )
+
     if action == TradingAction.BUY:
         if state.asset_price <= 0:
             raise ValueError("Asset price must be greater than zero.")
@@ -48,6 +54,12 @@ def execute_action(
         return ExecutionResult(
             portfolio=next_portfolio,
             trade=trade,
+        )
+
+    if action == TradingAction.SELL and state.shares <= 0:
+        return ExecutionResult(
+              portfolio=state,
+              trade=None,
         )
 
     if action == TradingAction.SELL:

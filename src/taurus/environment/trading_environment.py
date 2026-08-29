@@ -2,9 +2,9 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
-from taurus.environment.observation import build_observation
+from taurus.environment.feature_state import FeatureEnvironmentState
+from taurus.environment.observation import build_feature_observation
 from taurus.environment.state import EnvironmentState
-from taurus.features.market_state import MarketState
 from taurus.simulation.actions import TradingAction
 from taurus.simulation.portfolio import PortfolioState
 from taurus.simulation.step import step_portfolio
@@ -17,23 +17,23 @@ class TaurusTradingEnvironment(gym.Env):
 
     def __init__(
         self,
-        market_states: list[MarketState],
+        feature_states: list[FeatureEnvironmentState],
         initial_portfolio: PortfolioState,
     ):
         super().__init__()
 
-        if len(market_states) < 2:
+        if len(feature_states) < 2:
             raise ValueError(
-                "At least two market states are required."
+                "At least two feature states are required."
             )
 
-        self.market_states = market_states
+        self.feature_states = feature_states
         self.initial_portfolio = initial_portfolio
 
         self.current_index = 0
 
         self.state = EnvironmentState(
-            market=self.market_states[0],
+            market=self.feature_states[0].market,
             portfolio=self.initial_portfolio,
             step_index=0,
         )
@@ -42,19 +42,24 @@ class TaurusTradingEnvironment(gym.Env):
             len(TradingAction)
         )
 
+        observation_size = (
+            len(self.feature_states[0].features)
+            + 3
+        )
+
         self.observation_space = spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(13,),
+            shape=(observation_size,),
             dtype=np.float32,
         )
 
     def _get_observation(self) -> np.ndarray:
-        observation = build_observation(self.state)
-
-        return np.array(
-            observation,
-            dtype=np.float32,
+        return build_feature_observation(
+            features=self.feature_states[
+                self.current_index
+            ].features,
+            portfolio=self.state.portfolio,
         )
 
     def reset(
@@ -68,7 +73,7 @@ class TaurusTradingEnvironment(gym.Env):
         self.current_index = 0
 
         self.state = EnvironmentState(
-            market=self.market_states[0],
+            market=self.feature_states[0].market,
             portfolio=self.initial_portfolio,
             step_index=0,
         )
@@ -78,13 +83,21 @@ class TaurusTradingEnvironment(gym.Env):
     def step(self, action: int):
         trading_action = TradingAction(action)
 
-        current_market = self.market_states[
+        current_feature_state = self.feature_states[
             self.current_index
         ]
 
-        next_market = self.market_states[
+        next_feature_state = self.feature_states[
             self.current_index + 1
         ]
+
+        current_market = (
+            current_feature_state.market
+        )
+
+        next_market = (
+            next_feature_state.market
+        )
 
         step_result = step_portfolio(
             state=self.state.portfolio,
@@ -103,7 +116,7 @@ class TaurusTradingEnvironment(gym.Env):
 
         terminated = (
             self.current_index
-            == len(self.market_states) - 1
+            == len(self.feature_states) - 1
         )
 
         truncated = False

@@ -77,3 +77,37 @@ def test_sell_converts_shares_to_cash():
     assert result.trade.price == 200.0
     assert result.trade.shares == 5.0
     assert result.trade.value == 1_000.0
+
+def test_buy_with_no_cash_does_nothing():
+    state = PortfolioState(
+        cash=0.0,
+        shares=5.0,
+        asset_price=100.0,
+        portfolio_value=500.0,
+    )
+
+    result = execute_action(
+        state=state,
+        action=TradingAction.BUY,
+        timestamp=None,
+    )
+
+    assert result.portfolio == state
+    assert result.trade is None
+
+def test_sell_with_no_shares_does_nothing():
+    state = PortfolioState(
+        cash=1000.0,
+        shares=0.0,
+        asset_price=100.0,
+        portfolio_value=1000.0,
+    )
+
+    result = execute_action(
+        state=state,
+        action=TradingAction.SELL,
+        timestamp=None,
+    )
+
+    assert result.portfolio == state
+    assert result.trade is None

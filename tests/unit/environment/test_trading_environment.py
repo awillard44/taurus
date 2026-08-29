@@ -8,6 +8,7 @@ from taurus.environment.trading_environment import TaurusTradingEnvironment
 from taurus.features.market_state import MarketState
 from taurus.simulation.actions import TradingAction
 from taurus.simulation.portfolio import PortfolioState
+from taurus.environment.feature_state import FeatureEnvironmentState
 
 from gymnasium.utils.env_checker import check_env
 
@@ -53,6 +54,18 @@ def build_test_environment() -> TaurusTradingEnvironment:
         ),
     ]
 
+    feature_states = [
+        FeatureEnvironmentState(
+            market=market_state,
+            features={
+                "return_1": market_state.return_1,
+                "return_5": market_state.return_5,
+                "return_20": market_state.return_20,
+            },
+        )
+        for market_state in market_states
+    ]
+
     initial_portfolio = PortfolioState(
         cash=1_000.0,
         shares=0.0,
@@ -61,7 +74,7 @@ def build_test_environment() -> TaurusTradingEnvironment:
     )
 
     return TaurusTradingEnvironment(
-        market_states=market_states,
+        feature_states=feature_states,
         initial_portfolio=initial_portfolio,
     )
 
@@ -70,7 +83,7 @@ def test_trading_environment_spaces():
     environment = build_test_environment()
 
     assert environment.action_space.n == 3
-    assert environment.observation_space.shape == (13,)
+    assert environment.observation_space.shape == (6,)
 
 
 def test_trading_environment_reset_returns_observation():
@@ -79,7 +92,7 @@ def test_trading_environment_reset_returns_observation():
     observation, info = environment.reset()
 
     assert isinstance(observation, np.ndarray)
-    assert observation.shape == (13,)
+    assert observation.shape == (6,)
     assert observation.dtype == np.float32
     assert info == {}
 
@@ -130,7 +143,7 @@ def test_trading_environment_buy_then_price_increases():
     assert terminated is False
     assert truncated is False
 
-    assert observation.shape == (13,)
+    assert observation.shape == (6,)
 
 
 def test_trading_environment_terminates_at_last_market_state():

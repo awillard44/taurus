@@ -15,6 +15,7 @@ from taurus.evaluation.baseline_runner import (
 )
 from taurus.models.baselines.always_hold import AlwaysHoldAgent
 from taurus.simulation.actions import TradingAction
+from taurus.environment.feature_state import FeatureEnvironmentState
 
 
 def build_market_state(
@@ -38,6 +39,22 @@ def build_market_state(
         volume_ratio=1.0,
         relative_return=0.0,
     )
+
+
+def build_feature_states(
+    market_states: list[MarketState],
+) -> list[FeatureEnvironmentState]:
+    return [
+        FeatureEnvironmentState(
+            market=market_state,
+            features={
+                "return_1": market_state.return_1,
+                "return_5": market_state.return_5,
+                "return_20": market_state.return_20,
+            },
+        )
+        for market_state in market_states
+    ]
 
 
 def test_run_agent_episode_completes_episode():
@@ -66,7 +83,9 @@ def test_run_agent_episode_completes_episode():
     )
 
     environment = TaurusTradingEnvironment(
-        market_states=market_states,
+        feature_states=build_feature_states(
+            market_states
+        ),
         initial_portfolio=initial_portfolio,
     )
 
@@ -116,7 +135,9 @@ def test_compare_baselines_runs_each_agent():
     )
 
     environment = TaurusTradingEnvironment(
-        market_states=market_states,
+        feature_states=build_feature_states(
+            market_states
+        ),
         initial_portfolio=initial_portfolio,
     )
 
@@ -164,7 +185,9 @@ def test_run_agent_episodes_aggregates_results():
     )
 
     environment = TaurusTradingEnvironment(
-        market_states=market_states,
+        feature_states=build_feature_states(
+            market_states
+        ),
         initial_portfolio=initial_portfolio,
     )
 
@@ -207,7 +230,9 @@ def test_run_agent_episode_tracks_drawdown():
     )
 
     environment = TaurusTradingEnvironment(
-        market_states=market_states,
+        feature_states=build_feature_states(
+            market_states
+        ),
         initial_portfolio=initial_portfolio,
     )
 
@@ -257,7 +282,9 @@ def test_run_agent_episode_records_trades():
     )
 
     environment = TaurusTradingEnvironment(
-        market_states=market_states,
+        feature_states=build_feature_states(
+            market_states
+        ),
         initial_portfolio=initial_portfolio,
     )
 
@@ -301,7 +328,9 @@ def test_run_agent_episode_records_closed_trade():
     )
 
     environment = TaurusTradingEnvironment(
-        market_states=market_states,
+        feature_states=build_feature_states(
+            market_states
+        ),
         initial_portfolio=initial_portfolio,
     )
 
