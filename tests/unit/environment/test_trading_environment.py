@@ -9,6 +9,7 @@ from taurus.features.market_state import MarketState
 from taurus.simulation.actions import TradingAction
 from taurus.simulation.portfolio import PortfolioState
 from taurus.environment.feature_state import FeatureEnvironmentState
+from taurus.simulation.costs import ExecutionCosts
 
 from gymnasium.utils.env_checker import check_env
 
@@ -168,3 +169,22 @@ def test_trading_environment_passes_gymnasium_checker():
     environment = build_test_environment()
 
     check_env(environment)
+
+def test_trading_environment_applies_execution_costs():
+    environment = build_test_environment()
+
+    environment.costs = ExecutionCosts(
+        commission_rate=0.001,
+        slippage_rate=0.001,
+    )
+
+    environment.reset()
+
+    observation, reward, terminated, truncated, info = environment.step(
+        TradingAction.BUY
+    )
+
+    assert info["trade"] is not None
+    assert info["trade"].price > 200.0
+
+    assert environment.state.portfolio.portfolio_value < 1050.0

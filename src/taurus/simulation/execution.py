@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from taurus.simulation.actions import TradingAction
 from taurus.simulation.portfolio import PortfolioState
 from taurus.simulation.trade import Trade
+from taurus.simulation.costs import ExecutionCosts
 
 
 @dataclass(frozen=True)
@@ -15,6 +16,7 @@ def execute_action(
     state: PortfolioState,
     action: TradingAction,
     timestamp,
+    costs: ExecutionCosts = ExecutionCosts(),
 ) -> ExecutionResult:
     # Apply a trading action and return the updated portfolio and trade
 
@@ -34,21 +36,36 @@ def execute_action(
         if state.asset_price <= 0:
             raise ValueError("Asset price must be greater than zero.")
 
-        shares_to_buy = state.cash / state.asset_price
+        if state.asset_price <= 0:
+            raise ValueError("Assert price must be greater than 0")
+
+        execution_price = (
+            state.asset_price * (1.0 + costs.slippage_rate)
+        )
+
+        available_cash = state.cash
+
+        commission = (
+            available_cash * costs.commission_rate
+        )
+
+        cash_for_shares = (available_cash - commission)
+
+        shares_to_buy = (cash_for_shares / execution_price)
 
         next_portfolio = PortfolioState(
             cash=0.0,
             shares=state.shares + shares_to_buy,
             asset_price=state.asset_price,
-            portfolio_value=state.portfolio_value,
+            portfolio_value=state.portfolio_value - commission,
         )
 
         trade = Trade(
             timestamp=timestamp,
             action=TradingAction.BUY,
-            price=state.asset_price,
+            price=execution_price,
             shares=shares_to_buy,
-            value=state.cash,
+            value=cash_for_shares,
         )
 
         return ExecutionResult(
@@ -63,22 +80,31 @@ def execute_action(
         )
 
     if action == TradingAction.SELL:
+        execution_price = (
+            state.asset_price * (1.0 - costs.slippage_rate)
+        )
+
         shares_to_sell = state.shares
-        sale_value = shares_to_sell * state.asset_price
+
+        gross_sale_value = (shares_to_sell * execution_price)
+
+        commission = (gross_sale_value * costs.commission_rate)
+
+        net_sale_value = (gross_sale_value - commission)
 
         next_portfolio = PortfolioState(
-            cash=state.cash + sale_value,
+            cash=state.cash + net_sale_value,
             shares=0.0,
             asset_price=state.asset_price,
-            portfolio_value=state.cash + sale_value,
+            portfolio_value=state.cash + net_sale_value,
         )
 
         trade = Trade(
             timestamp=timestamp,
             action=TradingAction.SELL,
-            price=state.asset_price,
+            price=execution_price,
             shares=shares_to_sell,
-            value=sale_value,
+            value=net_sale_value,
         )
 
         return ExecutionResult(

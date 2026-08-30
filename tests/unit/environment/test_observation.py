@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 
 from datetime import datetime
@@ -8,7 +9,6 @@ from taurus.environment.state import EnvironmentState
 from taurus.features.market_state import MarketState
 from taurus.simulation.portfolio import PortfolioState
 from taurus.environment.observation import build_feature_observation
-from taurus.simulation.portfolio import PortfolioState
 
 
 def test_build_observation_returns_expected_values():
@@ -113,16 +113,18 @@ def test_build_feature_observation():
     observation = build_feature_observation(
         features=features,
         portfolio=portfolio,
+        current_price=100.0,
+        initial_portfolio_value=1000.0,
     )
 
     expected = np.asarray(
         [
-            0.01,
-            55.0,
-            25.0,
-            500.0,
-            5.0,
-            1000.0,
+            0.01,   # return_1
+            0.55,   # RSI
+            0.25,   # ADX
+            0.50,   # cash / initial value
+            0.50,   # shares * price / initial value
+            1.00,   # portfolio value / initial value
         ],
         dtype=np.float32,
     )
@@ -148,6 +150,8 @@ def test_build_feature_observation_returns_float32():
     observation = build_feature_observation(
         features=features,
         portfolio=portfolio,
+        current_price=100.0,
+        initial_portfolio_value=1000.0,
     )
 
     assert observation.dtype == np.float32
@@ -166,6 +170,8 @@ def test_build_feature_observation_shape_changes_with_features():
             "a": 1.0,
         },
         portfolio=portfolio,
+        current_price=100.0,
+        initial_portfolio_value=1000.0,
     )
 
     large_observation = build_feature_observation(
@@ -175,6 +181,26 @@ def test_build_feature_observation_shape_changes_with_features():
             "c": 3.0,
         },
         portfolio=portfolio,
+        current_price=100.0,
+        initial_portfolio_value=1000.0,
     )
 
     assert small_observation.shape == (4,)
+
+def test_build_feature_observation_requires_positive_initial_portfolio_value():
+    portfolio = PortfolioState(
+        cash=1000.0,
+        shares=0.0,
+        asset_price=100.0,
+        portfolio_value=1000.0,
+    )
+
+    with pytest.raises(ValueError):
+        build_feature_observation(
+            features={
+                "return_1": 0.01,
+            },
+            portfolio=portfolio,
+            current_price=100.0,
+            initial_portfolio_value=0.0,
+        )

@@ -7,6 +7,7 @@ from taurus.simulation.portfolio import PortfolioState
 from taurus.simulation.rewards import calculate_portfolio_return_reward
 from taurus.simulation.trade import Trade
 from taurus.simulation.valuation import revalue_portfolio
+from taurus.simulation.costs import ExecutionCosts
 
 
 @dataclass(frozen=True)
@@ -20,7 +21,8 @@ def step_portfolio(
     state: PortfolioState,
     action: TradingAction,
     next_asset_price: float,
-    timestamp: datetime,
+    timestamp,
+    costs: ExecutionCosts = ExecutionCosts(),
 ) -> StepResult:
     # Apply an action, advance the market, and calculate reward
 
@@ -28,6 +30,7 @@ def step_portfolio(
         state=state,
         action=action,
         timestamp=timestamp,
+        costs=costs,
     )
 
     next_state = revalue_portfolio(

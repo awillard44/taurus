@@ -2,6 +2,8 @@ import numpy as np
 
 from taurus.simulation.portfolio import PortfolioState
 from taurus.environment.state import EnvironmentState
+from taurus.environment.normalization import normalize_market_features
+
 
 def build_observation(
     state: EnvironmentState,
@@ -27,18 +29,45 @@ def build_observation(
 def build_feature_observation(
     features: dict[str, float],
     portfolio: PortfolioState,
+    current_price: float,
+    initial_portfolio_value: float,
 ) -> np.ndarray:
-    # Build an RL observation from market features and portfolio state
+
+    if initial_portfolio_value <= 0:
+        raise ValueError(
+            "Initial portfolio value must be greater than zero."
+        )
+
+    normalized_features = normalize_market_features(
+        features=features,
+        current_price=current_price,
+    )
+
+    normalized_cash = (
+        portfolio.cash
+        / initial_portfolio_value
+    )
+
+    normalized_portfolio_value = (
+        portfolio.portfolio_value
+        / initial_portfolio_value
+    )
+
+    normalized_shares = (
+        portfolio.shares
+        * current_price
+        / initial_portfolio_value
+    )
 
     market_values = [
         float(value)
-        for value in features.values()
+        for value in normalized_features.values()
     ]
 
     portfolio_values = [
-        float(portfolio.cash),
-        float(portfolio.shares),
-        float(portfolio.portfolio_value),
+        float(normalized_cash),
+        float(normalized_shares),
+        float(normalized_portfolio_value),
     ]
 
     return np.asarray(

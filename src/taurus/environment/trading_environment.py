@@ -8,6 +8,7 @@ from taurus.environment.state import EnvironmentState
 from taurus.simulation.actions import TradingAction
 from taurus.simulation.portfolio import PortfolioState
 from taurus.simulation.step import step_portfolio
+from taurus.simulation.costs import ExecutionCosts
 
 
 class TaurusTradingEnvironment(gym.Env):
@@ -19,7 +20,9 @@ class TaurusTradingEnvironment(gym.Env):
         self,
         feature_states: list[FeatureEnvironmentState],
         initial_portfolio: PortfolioState,
+        costs: ExecutionCosts = ExecutionCosts(),
     ):
+        self.costs = costs
         super().__init__()
 
         if len(feature_states) < 2:
@@ -60,6 +63,10 @@ class TaurusTradingEnvironment(gym.Env):
                 self.current_index
             ].features,
             portfolio=self.state.portfolio,
+            current_price=self.state.market.close,
+            initial_portfolio_value=(
+                self.initial_portfolio.portfolio_value
+            ),
         )
 
     def reset(
@@ -104,6 +111,7 @@ class TaurusTradingEnvironment(gym.Env):
             action=trading_action,
             next_asset_price=next_market.close,
             timestamp=current_market.timestamp,
+            costs=self.costs,
         )
 
         self.current_index += 1

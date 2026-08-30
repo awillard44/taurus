@@ -13,7 +13,7 @@ from taurus.models.baselines.always_hold import AlwaysHoldAgent
 from taurus.models.baselines.momentum import MomentumAgent
 from taurus.models.baselines.random_agent import RandomAgent
 from taurus.simulation.portfolio import PortfolioState
-
+from taurus.simulation.costs import ExecutionCosts
 
 
 database_path = Path("data/taurus.db")
@@ -44,9 +44,15 @@ initial_portfolio = PortfolioState(
     portfolio_value=1_000.0,
 )
 
+execution_costs = ExecutionCosts(
+    commission_rate=0.001,
+    slippage_rate=0.001,
+)
+
 environment = TaurusTradingEnvironment(
     feature_states=feature_states,
     initial_portfolio=initial_portfolio,
+    costs=execution_costs,
 )
 
 agents = {
