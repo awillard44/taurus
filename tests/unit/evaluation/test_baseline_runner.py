@@ -107,6 +107,10 @@ def test_run_agent_episode_completes_episode():
         1_100.0,
         1_200.0,
     )
+    assert result.portfolio_volatility is not None
+    assert result.portfolio_volatility > 0.0
+    assert result.sharpe_ratio is not None
+    assert result.sharpe_ratio > 0.0
 
 
 def test_compare_baselines_runs_each_agent():
@@ -157,7 +161,15 @@ def test_compare_baselines_runs_each_agent():
     }
 
     assert results["always_hold"].final_portfolio_value == 1_000.0
+    assert results["always_hold"].portfolio_volatility == 0.0
+    assert results["always_hold"].sharpe_ratio is None
+    assert results["always_hold"].sortino_ratio is None
+
     assert results["always_buy"].final_portfolio_value == 1_200.0
+    assert results["always_buy"].portfolio_volatility is not None
+    assert results["always_buy"].portfolio_volatility > 0.0
+    assert results["always_buy"].sharpe_ratio is not None
+    assert results["always_buy"].sharpe_ratio > 0.0
 
 def test_run_agent_episodes_aggregates_results():
     start = datetime(2026, 8, 25)
@@ -254,6 +266,7 @@ def test_run_agent_episode_tracks_drawdown():
     assert result.max_drawdown == pytest.approx(
         200.0 / 1_100.0
     )
+    assert result.sortino_ratio is not None
 
 
 def test_run_agent_episode_records_trades():

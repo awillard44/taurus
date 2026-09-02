@@ -6,10 +6,13 @@ from taurus.evaluation.metrics import (
     calculate_average_gain,
     calculate_average_loss,
     calculate_max_drawdown,
+    calculate_portfolio_volatility,
     calculate_profit_factor,
     calculate_total_return,
     calculate_trade_count,
     calculate_win_rate,
+    calculate_sharpe_ratio,
+    calculate_sortino_ratio,
 )
 from taurus.simulation.trade import Trade
 from taurus.simulation.closed_trade import ClosedTrade
@@ -29,6 +32,9 @@ class EpisodeResult:
     total_reward: float
     steps: int
     portfolio_values: tuple[float, ...]
+    portfolio_volatility: float | None
+    sharpe_ratio: float | None
+    sortino_ratio: float | None
     trades: tuple[Trade, ...]
     closed_trades: tuple[ClosedTrade, ...]
     trade_count: int
@@ -36,6 +42,7 @@ class EpisodeResult:
     average_gain: float
     average_loss: float
     profit_factor: float | None
+    
 
 
 @dataclass(frozen=True)
@@ -111,6 +118,37 @@ def run_agent_episode(
         environment.state.portfolio.portfolio_value
     )
 
+    portfolio_volatility = (
+        calculate_portfolio_volatility(portfolio_values)
+        if len(portfolio_values) >= 3 else None
+    )
+
+    portfolio_returns = [
+        (
+            portfolio_values[index] - portfolio_values[index -1]
+        )
+        / portfolio_values[index - 1]
+        for index in range(1, len(portfolio_values))
+    ]
+
+    if len(portfolio_returns) >= 2:
+        try:
+            sharpe_ratio = calculate_sharpe_ratio(portfolio_returns)
+        except Exception:
+            sharpe_ratio = None
+    else:
+        sharpe_ratio = None
+
+    if len(portfolio_returns) >= 2:
+        try:
+            sortino_ratio = calculate_sortino_ratio(
+                portfolio_returns
+            )
+        except ValueError:
+            sortino_ratio = None
+    else:
+        sortino_ratio = None
+
     trade_count = calculate_trade_count(closed_trades)
 
     win_rate = (
@@ -146,6 +184,9 @@ def run_agent_episode(
         total_reward=total_reward,
         steps=steps,
         portfolio_values=tuple(portfolio_values),
+        portfolio_volatility=portfolio_volatility,
+        sharpe_ratio=sharpe_ratio,
+        sortino_ratio=sortino_ratio,
         trades=tuple(trades),
         closed_trades=tuple(closed_trades),
         trade_count=trade_count,
