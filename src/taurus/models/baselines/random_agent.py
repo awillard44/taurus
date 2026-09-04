@@ -5,10 +5,16 @@ from taurus.simulation.actions import TradingAction
 
 
 class RandomAgent:
-    # Baseline agent that selects a random trading action
+    def __init__(
+        self,
+        seed: int | None = None,
+    ):
+        self._random = random.Random(seed)
 
     def predict(
-            self,
-            state: EnvironmentState,
-        ) -> TradingAction:
-            return random.choice(list(TradingAction))
+        self,
+        state: EnvironmentState,
+    ) -> TradingAction:
+        return self._random.choice(
+            list(TradingAction)
+        )

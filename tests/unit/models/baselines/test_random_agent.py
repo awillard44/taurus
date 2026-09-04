@@ -44,3 +44,24 @@ def test_random_agent_returns_valid_action():
     action = agent.predict(state)
 
     assert action in TradingAction
+
+def test_random_agent_is_reproducible_with_seed():
+    first_agent = RandomAgent(
+        seed=42,
+    )
+
+    second_agent = RandomAgent(
+        seed=42,
+    )
+
+    first_actions = [
+        first_agent.predict(None)
+        for _ in range(20)
+    ]
+
+    second_actions = [
+        second_agent.predict(None)
+        for _ in range(20)
+    ]
+
+    assert first_actions == second_actions
