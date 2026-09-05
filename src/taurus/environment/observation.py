@@ -1,9 +1,16 @@
 import numpy as np
 
+from typing import Literal
+
 from taurus.simulation.portfolio import PortfolioState
 from taurus.environment.state import EnvironmentState
 from taurus.environment.normalization import normalize_market_features
 
+
+ObservationVersion = Literal[
+    "initial-capital-v1",
+    "allocation-v2",
+]
 
 def build_observation(
     state: EnvironmentState,
@@ -31,8 +38,8 @@ def build_feature_observation(
     portfolio: PortfolioState,
     current_price: float,
     initial_portfolio_value: float,
+    observation_version: ObservationVersion = "initial-capital-v1"
 ) -> np.ndarray:
-
     if initial_portfolio_value <= 0:
         raise ValueError(
             "Initial portfolio value must be greater than zero."
@@ -43,31 +50,34 @@ def build_feature_observation(
         current_price=current_price,
     )
 
-    normalized_cash = (
-        portfolio.cash
-        / initial_portfolio_value
-    )
+    invested_value = portfolio.shares * current_price
 
-    normalized_portfolio_value = (
-        portfolio.portfolio_value
-        / initial_portfolio_value
-    )
+    if observation_version == "initial-capital-v1":
+        portfolio_values = [
+            portfolio.cash / initial_portfolio_value,
+            invested_value / initial_portfolio_value,
+            portfolio.portfolio_value / initial_portfolio_value,
+        ]
 
-    normalized_shares = (
-        portfolio.shares
-        * current_price
-        / initial_portfolio_value
-    )
+    elif observation_version == "allocation-v2":
+        if portfolio.portfolio_value <= 0:
+            raise ValueError(
+                "Current portfolio value must be greater than zero."
+            )
+
+        portfolio_values = [
+            portfolio.cash / portfolio.portfolio_value,
+            invested_value / portfolio.portfolio_value,
+        ]
+
+    else:
+        raise ValueError(
+            f"Unsupported observation version: {observation_version}"
+        )
 
     market_values = [
         float(value)
         for value in normalized_features.values()
-    ]
-
-    portfolio_values = [
-        float(normalized_cash),
-        float(normalized_shares),
-        float(normalized_portfolio_value),
     ]
 
     return np.asarray(

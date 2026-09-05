@@ -1,8 +1,11 @@
 import pytest
+import torch
+import numpy as np
+
+import taurus.training.ppo_evaluator as ppo_evaluator
+
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
-
-import torch
 
 from taurus.data.schemas import BarInterval, PriceBar
 from taurus.training.experiment_config import (
@@ -12,6 +15,7 @@ from taurus.training.experiment_config import (
 from taurus.training.ppo_evaluator import (
     PPOEvaluationResult,
     evaluate_ppo,
+    check_model_observation_compatibility,
 )
 from taurus.training.validation_environment import (
     build_validation_environment,
@@ -324,3 +328,133 @@ def test_evaluate_ppo_records_constant_cash_target():
         not record.target_changed
         for record in result.step_records
     )
+
+@pytest.mark.parametrize("input_count", [12, 13])
+def test_observation_compatibility_accepts_matching_shapes(
+    input_count,
+):
+    model = SimpleNamespace(
+        observation_space=SimpleNamespace(shape=(input_count,))
+    )
+    environment = SimpleNamespace(
+        observation_space=SimpleNamespace(shape=(input_count,))
+    )
+
+    check_model_observation_compatibility(
+        model=model,
+        environment=environment,
+    )
+
+
+@pytest.mark.parametrize(
+    "model_shape, environment_shape, observation_version",
+    [
+        ((13,), (12,), "allocation-v2"),
+        ((12,), (13,), "initial-capital-v1"),
+    ],
+)
+def test_observation_compatibility_rejects_mismatched_shapes(
+    model_shape,
+    environment_shape,
+    observation_version,
+):
+    model = SimpleNamespace(
+        observation_space=SimpleNamespace(shape=model_shape)
+    )
+    environment = SimpleNamespace(
+        observation_space=SimpleNamespace(shape=environment_shape),
+        taurus_environment=SimpleNamespace(
+            observation_version=observation_version
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Model expects observation shape",
+    ):
+        check_model_observation_compatibility(
+            model=model,
+            environment=environment,
+        )
+
+@pytest.mark.parametrize(
+    "observation_version, expected_cash, expected_long",
+    [
+        (
+            "initial-capital-v1",
+            [0.01, 0.60, 4.0, 0.0, 4.0],
+            [0.01, 0.60, 0.0, 4.0, 4.0],
+        ),
+        (
+            "allocation-v2",
+            [0.01, 0.60, 1.0, 0.0],
+            [0.01, 0.60, 0.0, 1.0],
+        ),
+    ],
+)
+def test_portfolio_sensitivity_uses_selected_observation_version(
+    monkeypatch,
+    observation_version,
+    expected_cash,
+    expected_long,
+):
+    observations = []
+
+    def capture_probabilities(model, observation):
+        observations.append(observation.copy())
+
+        if len(observations) == 1:
+            return 0.80, 0.20
+
+        return 0.30, 0.70
+
+    monkeypatch.setattr(
+        ppo_evaluator,
+        "_get_target_probabilities",
+        capture_probabilities,
+    )
+
+    record = SimpleNamespace(
+        portfolio_value=1000.0,
+        asset_price=100.0,
+        feature_values=(
+            ("return_1", 0.01),
+            ("rsi_14", 60.0),
+        ),
+    )
+
+    result = ppo_evaluator.compare_portfolio_state_probabilities(
+        model=object(),
+        record=record,
+        initial_portfolio_value=1000.0,
+        account_value=4000.0,
+        observation_version=observation_version,
+    )
+
+    assert result == pytest.approx((0.20, 0.70))
+    assert len(observations) == 2
+
+    np.testing.assert_allclose(observations[0], expected_cash)
+    np.testing.assert_allclose(observations[1], expected_long)
+
+@pytest.mark.parametrize("account_value", [0.0, -100.0])
+def test_portfolio_sensitivity_rejects_nonpositive_account_value(
+    account_value,
+):
+    record = SimpleNamespace(
+        portfolio_value=1000.0,
+        asset_price=100.0,
+        feature_values=(("return_1", 0.01),),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Account value must be positive",
+    ):
+        ppo_evaluator.compare_portfolio_state_probabilities(
+            model=object(),
+            record=record,
+            initial_portfolio_value=1000.0,
+            account_value=account_value,
+            observation_version="allocation-v2",
+        )

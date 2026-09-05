@@ -1,3 +1,6 @@
+import numpy as np
+import pytest
+
 from datetime import date, datetime, timezone
 
 from taurus.data.schemas import BarInterval, PriceBar
@@ -104,12 +107,23 @@ def test_build_validation_environment_returns_validation_wrapper():
     )
 
 
-def test_validation_environment_contains_only_validation_dates():
+@pytest.mark.parametrize(
+    "observation_version, portfolio_input_count",
+    [
+        ("initial-capital-v1", 3),
+        ("allocation-v2", 2),
+    ],
+)
+def test_validation_environment_contains_only_validation_dates(
+    observation_version,
+    portfolio_input_count,
+):
     config = make_config()
 
     result = build_validation_environment(
         repository=make_repository(),
         config=config,
+        observation_version=observation_version,
     )
 
     timestamps = [
@@ -124,3 +138,28 @@ def test_validation_environment_contains_only_validation_dates():
     assert timestamps
     assert min(timestamps) >= config.validation.start
     assert max(timestamps) <= config.validation.end
+
+    environment = result.environment
+    underlying = environment.taurus_environment
+
+    assert underlying.observation_version == observation_version
+
+    expected_size = (
+        len(underlying.feature_states[0].features)
+        + portfolio_input_count
+    )
+
+    assert environment.observation_space.shape == (expected_size,)
+
+    observation, _ = environment.reset()
+
+    assert observation.shape == (expected_size,)
+    assert np.isfinite(observation).all()
+    assert environment.observation_space.contains(observation)
+
+    # Target-position action 1 means LONG
+    observation, _, _, _, _ = environment.step(1)
+
+    assert observation.shape == (expected_size,)
+    assert np.isfinite(observation).all()
+    assert environment.observation_space.contains(observation)

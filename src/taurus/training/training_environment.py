@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from taurus.data.sqlite_repository import SQLitePriceBarRepository
+from taurus.environment.observation import ObservationVersion
 from taurus.environment.trading_environment import (
     TaurusTradingEnvironment,
 )
@@ -33,6 +34,7 @@ def build_training_environment(
         commission_rate=0.001,
         slippage_rate=0.001,
     ),
+    observation_version: ObservationVersion = "initial-capital-v1",
 ) -> TrainingEnvironment:
     environment = build_experiment_environment(
         repository=repository,
@@ -42,6 +44,7 @@ def build_training_environment(
         minimum_history=minimum_history,
         initial_cash=initial_cash,
         costs=costs,
+        observation_version=observation_version,
     )
 
     target_position_environment = TargetPositionEnvironment(

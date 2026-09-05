@@ -204,3 +204,129 @@ def test_build_feature_observation_requires_positive_initial_portfolio_value():
             current_price=100.0,
             initial_portfolio_value=0.0,
         )
+
+def test_allocation_v2_records_allocation_proportions():
+    portfolio = PortfolioState(
+        cash=500.0,
+        shares=15.0,
+        asset_price=100.0,
+        portfolio_value=2000.0,
+    )
+
+    observation = build_feature_observation(
+        features={"return_1": 0.01, "rsi_14": 60.0},
+        portfolio=portfolio,
+        current_price=100.0,
+        initial_portfolio_value=1000.0,
+        observation_version="allocation-v2",
+    )
+
+    np.testing.assert_allclose(
+        observation,
+        [0.01, 0.60, 0.25, 0.75],
+    )
+    assert observation.dtype == np.float32
+
+@pytest.mark.parametrize("cash_fraction", [0.0, 0.25, 1.0])
+def test_allocation_v2_is_independent_of_account_size(
+    cash_fraction,
+):
+    observations = []
+
+    for account_value in (500.0, 1000.0, 2000.0, 4000.0):
+        portfolio = PortfolioState(
+            cash=account_value * cash_fraction,
+            shares=account_value * (1.0 - cash_fraction) / 100.0,
+            asset_price=100.0,
+            portfolio_value=account_value,
+        )
+
+        observations.append(
+            build_feature_observation(
+                features={"return_1": 0.01, "rsi_14": 60.0},
+                portfolio=portfolio,
+                current_price=100.0,
+                initial_portfolio_value=1000.0,
+                observation_version="allocation-v2",
+            )
+        )
+
+    for observation in observations[1:]:
+        np.testing.assert_array_equal(
+            observation,
+            observations[0],
+        )
+
+def test_explicit_v1_preserves_original_observation():
+    portfolio = PortfolioState(
+        cash=500.0,
+        shares=15.0,
+        asset_price=100.0,
+        portfolio_value=2000.0,
+    )
+
+    arguments = {
+        "features": {"return_1": 0.01},
+        "portfolio": portfolio,
+        "current_price": 100.0,
+        "initial_portfolio_value": 1000.0,
+    }
+
+    default_observation = build_feature_observation(**arguments)
+    explicit_observation = build_feature_observation(
+        **arguments,
+        observation_version="initial-capital-v1",
+    )
+
+    np.testing.assert_array_equal(
+        explicit_observation,
+        default_observation,
+    )
+    np.testing.assert_allclose(
+        explicit_observation,
+        [0.01, 0.50, 1.50, 2.00],
+    )
+
+@pytest.mark.parametrize("account_value", [0.0, -100.0])
+def test_allocation_v2_rejects_nonpositive_account_value(
+    account_value,
+):
+    portfolio = PortfolioState(
+        cash=account_value,
+        shares=0.0,
+        asset_price=100.0,
+        portfolio_value=account_value,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Current portfolio value must be greater than zero",
+    ):
+        build_feature_observation(
+            features={"return_1": 0.01},
+            portfolio=portfolio,
+            current_price=100.0,
+            initial_portfolio_value=1000.0,
+            observation_version="allocation-v2",
+        )
+
+
+def test_feature_observation_rejects_unknown_version():
+    portfolio = PortfolioState(
+        cash=1000.0,
+        shares=0.0,
+        asset_price=100.0,
+        portfolio_value=1000.0,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Unsupported observation version",
+    ):
+        build_feature_observation(
+            features={"return_1": 0.01},
+            portfolio=portfolio,
+            current_price=100.0,
+            initial_portfolio_value=1000.0,
+            observation_version="unknown",
+        )

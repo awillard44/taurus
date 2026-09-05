@@ -10,6 +10,7 @@ from taurus.data.sqlite_repository import (
 from taurus.evaluation.baseline_runner import (
     compare_baselines,
 )
+from taurus.evaluation.metrics import calculate_max_drawdown
 from taurus.models.baselines.always_buy import (
     AlwaysBuyAgent,
 )
@@ -19,7 +20,10 @@ from taurus.models.baselines.always_hold import (
 from taurus.models.baselines.momentum import (
     MomentumAgent,
 )
-from taurus.training.ppo_evaluator import evaluate_ppo
+from taurus.training.ppo_evaluator import (
+    evaluate_ppo,
+    check_model_observation_compatibility,
+)
 from taurus.training.presets import NVDA_INITIAL_EXPERIMENT
 from taurus.training.validation_environment import (
     build_validation_environment,
@@ -30,11 +34,12 @@ from taurus.training.environment_builder import (
 from taurus.training.validation_analysis import (
     calculate_feature_policy_associations,
 )
+from taurus.training.run_metadata import load_observation_version
 
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
-        description="Evaluate a named NVDA training run on 2025 validation."
+        description="Evaluate a named NVDA training run."
     )
     parser.add_argument(
         "--run-name",
@@ -73,6 +78,11 @@ def main(argv=None) -> None:
     database_path = Path("data/taurus.db")
     model_path = resolve_model_path(args.run_name)
 
+    observation_version = load_observation_version(
+        model_path.with_name("metadata.json")
+    )
+    print(f"Observation version: {observation_version}")
+
     repository = SQLitePriceBarRepository(
         database_path,
     )
@@ -80,10 +90,16 @@ def main(argv=None) -> None:
     validation_environment = build_validation_environment(
         repository=repository,
         config=NVDA_INITIAL_EXPERIMENT,
+        observation_version=observation_version,
     )
 
     model = PPO.load(
         model_path,
+    )
+
+    check_model_observation_compatibility(
+        model=model,
+        environment=validation_environment.environment,
     )
 
     ppo_result = evaluate_ppo(
@@ -106,6 +122,18 @@ def main(argv=None) -> None:
     )
 
     records = ppo_result.step_records
+
+    portfolio_values = [
+        record.portfolio_value
+        for record in records
+    ]
+    portfolio_values.append(
+        ppo_result.final_portfolio_value
+    )
+
+    ppo_max_drawdown = calculate_max_drawdown(portfolio_values)
+
+    print(f"\nPPO maximum drawdown: {ppo_max_drawdown:.2%}")
 
     average_cash_probability = sum(
         record.cash_probability
@@ -232,6 +260,7 @@ def main(argv=None) -> None:
         repository=repository,
         config=NVDA_INITIAL_EXPERIMENT,
         split="validation",
+        observation_version=observation_version,
     )
 
     agents = {
@@ -252,7 +281,8 @@ def main(argv=None) -> None:
             f"{name}: "
             f"${result.final_portfolio_value:.2f} "
             f"| return={result.total_return:.4f} "
-            f"| reward={result.total_reward:.4f}"
+            f"| reward={result.total_reward:.4f} "
+            f"| max drawdown={result.max_drawdown:.2%}"
         )
 
 if __name__ == "__main__":

@@ -1,3 +1,6 @@
+import numpy as np
+import pytest
+
 from datetime import date, datetime, timezone
 
 from taurus.data.schemas import BarInterval, PriceBar
@@ -99,8 +102,17 @@ def test_build_training_environment_returns_training_wrapper():
         TrainingEnvironment,
     )
 
-
-def test_training_environment_contains_only_training_dates():
+@pytest.mark.parametrize(
+    "observation_version, portfolio_input_count",
+    [
+        ("initial-capital-v1", 3),
+        ("allocation-v2", 2)
+    ],
+)
+def test_training_environment_contains_only_training_dates(
+    observation_version,
+    portfolio_input_count,
+):
     repository = FakeRepository(
         {
             "NVDA": make_bars("NVDA"),
@@ -130,6 +142,7 @@ def test_training_environment_contains_only_training_dates():
     result = build_training_environment(
         repository=repository,
         config=config,
+        observation_version=observation_version,
     )
 
     timestamps = [
@@ -144,3 +157,28 @@ def test_training_environment_contains_only_training_dates():
     assert timestamps
     assert min(timestamps) >= config.training.start
     assert max(timestamps) <= config.training.end
+
+    environment = result.environment
+    underlying = environment.taurus_environment
+
+    assert underlying.observation_version == observation_version
+
+    expected_size = (
+        len(underlying.feature_states[0].features)
+        + portfolio_input_count
+    )
+
+    assert environment.observation_space.shape == (expected_size,)
+
+    observation, _ = environment.reset()
+
+    assert observation.shape == (expected_size,)
+    assert np.isfinite(observation).all()
+    assert environment.observation_space.contains(observation)
+
+    # Target-position action 1 means LONG
+    observation, _, _, _, _ = environment.step(1)
+
+    assert observation.shape == (expected_size,)
+    assert np.isfinite(observation).all()
+    assert environment.observation_space.contains(observation)

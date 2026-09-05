@@ -16,6 +16,7 @@ from taurus.training.experiment_config import (
 )
 from taurus.training.run_metadata import (
     build_training_run_metadata,
+    load_observation_version,
     save_training_run_metadata,
 )
 
@@ -94,11 +95,16 @@ def test_build_training_run_metadata_records_experiment(
     assert metadata.python_version == "3.11.9"
     assert metadata.stable_baselines3_version == "2.7.0"
     assert metadata.git_commit == "a" * 40
+    assert metadata.observation_version == "initial-capital-v1"
 
-
+@pytest.mark.parametrize(
+    "observation_version",
+    ["initial-capital-v1", "allocation-v2"],
+)
 def test_save_training_run_metadata_writes_json(
     tmp_path: Path,
     reproducibility_values,
+    observation_version,
 ):
     metadata = build_training_run_metadata(
         run_name="nvda_ppo_smoke",
@@ -112,6 +118,7 @@ def test_save_training_run_metadata_writes_json(
         total_timesteps=10_000,
         action_space_version="target-position-v1",
         model_path=Path("model.zip"),
+        observation_version=observation_version,
     )
 
     output_path = tmp_path / "metadata.json"
@@ -134,6 +141,8 @@ def test_save_training_run_metadata_writes_json(
     assert stored["python_version"] == "3.11.9"
     assert stored["stable_baselines3_version"] == "2.7.0"
     assert stored["git_commit"] == "a" * 40
+    assert metadata.observation_version == observation_version
+    assert stored["observation_version"] == observation_version
 
 
 def test_build_training_run_metadata_rejects_invalid_timesteps():
@@ -186,3 +195,107 @@ def test_get_git_commit_propagates_failure(monkeypatch):
 
     with pytest.raises(subprocess.CalledProcessError):
         run_metadata.get_git_commit()
+
+def test_metadata_rejects_unknown_observation_version(
+    reproducibility_values,
+):
+    with pytest.raises(
+        ValueError,
+        match="Unsupported observation version",
+    ):
+        build_training_run_metadata(
+            run_name="invalid_version",
+            algorithm="PPO",
+            config=make_config(),
+            feature_set=DEFAULT_FEATURE_SET,
+            costs=ExecutionCosts(),
+            total_timesteps=100_000,
+            action_space_version="target-position-v1",
+            model_path=Path("model.zip"),
+            observation_version="unknown",
+        )
+
+@pytest.mark.parametrize(
+    "observation_version",
+    ["initial-capital-v1", "allocation-v2"],
+)
+def test_load_observation_version_reads_explicit_version(
+    tmp_path,
+    observation_version,
+):
+    path = tmp_path / "metadata.json"
+    path.write_text(
+        json.dumps({"observation_version": observation_version}),
+        encoding="utf-8",
+    )
+
+    assert load_observation_version(path) == observation_version
+
+
+def test_load_observation_version_handles_missing_file(tmp_path):
+    path = tmp_path / "metadata.json"
+
+    with pytest.warns(UserWarning, match="No metadata found"):
+        result = load_observation_version(path)
+
+    assert result == "initial-capital-v1"
+    assert not path.exists()
+
+
+def test_load_observation_version_handles_legacy_metadata(tmp_path):
+    path = tmp_path / "metadata.json"
+    original = json.dumps({"run_name": "legacy_run"})
+    path.write_text(original, encoding="utf-8")
+
+    with pytest.warns(
+        UserWarning,
+        match="No observation version recorded",
+    ):
+        result = load_observation_version(path)
+
+    assert result == "initial-capital-v1"
+    assert path.read_text(encoding="utf-8") == original
+
+
+@pytest.mark.parametrize(
+    "invalid_version",
+    ["unknown", None, 2, ["allocation-v2"]],
+)
+def test_load_observation_version_rejects_invalid_version(
+    tmp_path,
+    invalid_version,
+):
+    path = tmp_path / "metadata.json"
+    path.write_text(
+        json.dumps({"observation_version": invalid_version}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Unsupported observation version",
+    ):
+        load_observation_version(path)
+
+
+def test_load_observation_version_rejects_malformed_json(tmp_path):
+    path = tmp_path / "metadata.json"
+    path.write_text("{broken", encoding="utf-8")
+
+    with pytest.raises(json.JSONDecodeError):
+        load_observation_version(path)
+
+
+@pytest.mark.parametrize("metadata", [[], None, "allocation-v2"])
+def test_load_observation_version_requires_json_object(
+    tmp_path,
+    metadata,
+):
+    path = tmp_path / "metadata.json"
+    path.write_text(json.dumps(metadata), encoding="utf-8")
+
+    with pytest.raises(
+        ValueError,
+        match="Run metadata must be a JSON object",
+    ):
+        load_observation_version(path)

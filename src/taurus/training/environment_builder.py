@@ -2,6 +2,7 @@ from typing import Literal
 
 from taurus.data.schemas import BarInterval
 from taurus.data.sqlite_repository import SQLitePriceBarRepository
+from taurus.environment.observation import ObservationVersion
 from taurus.environment.feature_state_builder import (
     build_feature_state_sequence,
 )
@@ -53,6 +54,7 @@ def build_experiment_environment(
         commission_rate=0.001,
         slippage_rate=0.001,
     ),
+    observation_version: ObservationVersion = "initial-capital-v1",
 ) -> TaurusTradingEnvironment:
     if minimum_history <= 0:
         raise ValueError("Minimum history must be positive.")
@@ -120,4 +122,5 @@ def build_experiment_environment(
         feature_states=feature_states,
         initial_portfolio=initial_portfolio,
         costs=costs,
+        observation_version=observation_version,
     )

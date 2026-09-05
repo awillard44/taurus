@@ -1,9 +1,10 @@
+import numpy as np
+import pytest
+
 from datetime import datetime, timedelta
 
-
-import numpy as np
-
 from taurus.data.schemas import BarInterval
+from taurus.environment.observation import ObservationVersion
 from taurus.environment.trading_environment import TaurusTradingEnvironment
 from taurus.features.market_state import MarketState
 from taurus.simulation.actions import TradingAction
@@ -37,7 +38,9 @@ def build_market_state(
     )
 
 
-def build_test_environment() -> TaurusTradingEnvironment:
+def build_test_environment(
+        observation_version: ObservationVersion = "initial-capital-v1",
+) -> TaurusTradingEnvironment:
     start = datetime(2026, 8, 25)
 
     market_states = [
@@ -77,6 +80,7 @@ def build_test_environment() -> TaurusTradingEnvironment:
     return TaurusTradingEnvironment(
         feature_states=feature_states,
         initial_portfolio=initial_portfolio,
+        observation_version=observation_version,
     )
 
 
@@ -188,3 +192,62 @@ def test_trading_environment_applies_execution_costs():
     assert info["trade"].price > 200.0
 
     assert environment.state.portfolio.portfolio_value < 1050.0
+
+def test_allocation_v2_reset_matches_observation_space():
+    environment = build_test_environment("allocation-v2")
+
+    observation, _ = environment.reset()
+
+    # Three market features plus two allocation inputs.
+    assert environment.observation_space.shape == (5,)
+    assert observation.shape == (5,)
+    assert observation.dtype == np.float32
+    assert np.isfinite(observation).all()
+    assert environment.observation_space.contains(observation)
+
+    np.testing.assert_allclose(
+        observation[-2:],
+        [1.0, 0.0],
+    )
+
+
+def test_allocation_v2_tracks_allocation_through_episode():
+    environment = build_test_environment("allocation-v2")
+    environment.reset()
+
+    observation, reward, terminated, truncated, _ = (
+        environment.step(TradingAction.BUY)
+    )
+
+    assert environment.state.portfolio.portfolio_value == 1050.0
+    assert reward == pytest.approx(0.05)
+    assert not terminated
+    assert not truncated
+    assert np.isfinite(observation).all()
+    assert environment.observation_space.contains(observation)
+
+    # Account growth does not turn full exposure into 1.05.
+    np.testing.assert_allclose(observation[-2:], [0.0, 1.0])
+
+    observation, _, terminated, _, _ = environment.step(
+        TradingAction.SELL
+    )
+
+    assert terminated
+    assert np.isfinite(observation).all()
+    assert environment.observation_space.contains(observation)
+    np.testing.assert_allclose(observation[-2:], [1.0, 0.0])
+
+    observation, _ = environment.reset()
+
+    assert environment.state.portfolio.portfolio_value == 1000.0
+    assert environment.observation_space.contains(observation)
+    np.testing.assert_allclose(observation[-2:], [1.0, 0.0])
+
+
+def test_environment_rejects_unknown_observation_version():
+    with pytest.raises(
+        ValueError,
+        match="Unsupported observation version",
+    ):
+        build_test_environment("unknown")

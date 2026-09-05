@@ -7,8 +7,16 @@ from stable_baselines3 import PPO
 from taurus.environment.normalization import (
     normalize_market_features,
 )
+from taurus.environment.observation import(
+    ObservationVersion,
+    build_feature_observation,
+)
+from taurus.simulation.portfolio import PortfolioState
 from taurus.training.validation_environment import (
     ValidationEnvironment,
+)
+from taurus.training.target_position_environment import (
+    TargetPositionEnvironment,
 )
 
 
@@ -109,7 +117,16 @@ def evaluate_ppo(
     model: PPO,
     validation_environment: ValidationEnvironment,
 ) -> PPOEvaluationResult:
-    environment = validation_environment.environment
+    return evaluate_ppo_environment(
+        model=model,
+        environment=validation_environment.environment,
+    )
+
+def evaluate_ppo_environment(
+        model: PPO,
+        environment: TargetPositionEnvironment,
+) -> PPOEvaluationResult:
+    # Evaluate a fixed policy without updating its weights
     taurus_environment = environment.taurus_environment
 
     observation, _ = environment.reset()
@@ -280,3 +297,75 @@ def evaluate_ppo(
         transitions=tuple(transitions),
         step_records=tuple(step_records),
     )
+
+def compare_portfolio_state_probabilities(
+    model: PPO,
+    record: PPOStepRecord,
+    initial_portfolio_value: float,
+    account_value: float | None = None,
+    observation_version: ObservationVersion = "initial-capital-v1",
+) -> tuple[float, float]:
+    """Return LONG probabilities for all-cash and all-long states."""
+    if account_value is None:
+        account_value = record.portfolio_value
+
+    if account_value <= 0:
+        raise ValueError("Account value must be positive.")
+
+    price = record.asset_price
+
+    cash_portfolio = PortfolioState(
+        cash=account_value,
+        shares=0.0,
+        asset_price=price,
+        portfolio_value=account_value,
+    )
+
+    long_portfolio = PortfolioState(
+        cash=0.0,
+        shares=account_value / price,
+        asset_price=price,
+        portfolio_value=account_value,
+    )
+
+    long_probabilities = []
+
+    for portfolio in (cash_portfolio, long_portfolio):
+        observation = build_feature_observation(
+            features=dict(record.feature_values),
+            portfolio=portfolio,
+            current_price=price,
+            initial_portfolio_value=initial_portfolio_value,
+            observation_version=observation_version,
+        )
+
+        _, long_probability = _get_target_probabilities(
+            model=model,
+            observation=observation,
+        )
+
+        long_probabilities.append(long_probability)
+
+    return (
+        long_probabilities[0],
+        long_probabilities[1],
+    )
+
+def check_model_observation_compatibility(
+    model: PPO,
+    environment: TargetPositionEnvironment,
+) -> None:
+    model_shape = model.observation_space.shape
+    environment_shape = environment.observation_space.shape
+
+    if model_shape != environment_shape:
+        observation_version = (
+            environment.taurus_environment.observation_version
+        )
+
+        raise ValueError(
+            f"Model expects observation shape {model_shape}, "
+            f"but {observation_version} produces "
+            f"{environment_shape}. "
+            "Check this run's observation-version metadata."
+        )

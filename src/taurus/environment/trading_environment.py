@@ -1,9 +1,13 @@
 import gymnasium as gym
 import numpy as np
+
 from gymnasium import spaces
 
 from taurus.environment.feature_state import FeatureEnvironmentState
-from taurus.environment.observation import build_feature_observation
+from taurus.environment.observation import (
+    ObservationVersion,
+    build_feature_observation,
+)
 from taurus.environment.state import EnvironmentState
 from taurus.simulation.actions import TradingAction
 from taurus.simulation.portfolio import PortfolioState
@@ -21,9 +25,20 @@ class TaurusTradingEnvironment(gym.Env):
         feature_states: list[FeatureEnvironmentState],
         initial_portfolio: PortfolioState,
         costs: ExecutionCosts = ExecutionCosts(),
+        observation_version: ObservationVersion = "initial-capital-v1",
     ):
         self.costs = costs
         super().__init__()
+
+        if observation_version not in (
+            "initial-capital-v1",
+            "allocation-v2",
+        ):
+            raise ValueError(
+                f"Unsupported observation version: {observation_version}"
+            )
+
+        self.observation_version = observation_version
 
         if len(feature_states) < 2:
             raise ValueError(
@@ -45,9 +60,15 @@ class TaurusTradingEnvironment(gym.Env):
             len(TradingAction)
         )
 
+        portfolio_input_count = (
+            3
+            if self.observation_version == "initial-capital-v1"
+            else 2
+        )
+
         observation_size = (
             len(self.feature_states[0].features)
-            + 3
+            + portfolio_input_count
         )
 
         self.observation_space = spaces.Box(
@@ -67,6 +88,7 @@ class TaurusTradingEnvironment(gym.Env):
             initial_portfolio_value=(
                 self.initial_portfolio.portfolio_value
             ),
+            observation_version=self.observation_version,
         )
 
     def reset(
