@@ -1,3 +1,4 @@
+import pytest
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
 
@@ -241,3 +242,85 @@ def test_evaluate_ppo_records_no_transitions_for_constant_target():
     )
 
     assert result.transitions == ()
+
+def test_evaluate_ppo_records_every_step():
+    model = FakePPOModel()
+    environment = make_validation_environment()
+
+    result = evaluate_ppo(
+        model=model,
+        validation_environment=environment,
+    )
+
+    assert len(result.step_records) == result.steps
+
+
+def test_evaluate_ppo_records_policy_probabilities():
+    model = FakePPOModel()
+    environment = make_validation_environment()
+
+    result = evaluate_ppo(
+        model=model,
+        validation_environment=environment,
+    )
+
+    first_record = result.step_records[0]
+
+    assert first_record.cash_probability == pytest.approx(
+        0.75
+    )
+
+    assert first_record.long_probability == pytest.approx(
+        0.25
+    )
+
+    assert first_record.confidence_margin == pytest.approx(
+        0.50
+    )
+
+
+def test_evaluate_ppo_records_feature_state():
+    model = FakePPOModel()
+    environment = make_validation_environment()
+
+    result = evaluate_ppo(
+        model=model,
+        validation_environment=environment,
+    )
+
+    first_record = result.step_records[0]
+
+    assert first_record.feature_values
+    assert first_record.normalized_feature_values
+
+    raw_keys = {
+        key
+        for key, _ in first_record.feature_values
+    }
+
+    normalized_keys = {
+        key
+        for key, _ in first_record.normalized_feature_values
+    }
+
+    assert raw_keys == normalized_keys
+
+
+def test_evaluate_ppo_records_constant_cash_target():
+    model = FakePPOModel()
+    environment = make_validation_environment()
+
+    result = evaluate_ppo(
+        model=model,
+        validation_environment=environment,
+    )
+
+    assert all(
+        record.target == 0
+        for record in result.step_records
+    )
+
+    assert all(
+        not record.target_changed
+        for record in result.step_records
+    )

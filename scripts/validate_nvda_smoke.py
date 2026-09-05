@@ -25,6 +25,9 @@ from taurus.training.validation_environment import (
 from taurus.training.environment_builder import (
     build_experiment_environment,
 )
+from taurus.training.validation_analysis import (
+    calculate_feature_policy_associations,
+)
 
 
 database_path = Path("data/taurus.db")
@@ -64,6 +67,79 @@ print(
     f"cash={ppo_result.cash_count} "
     f"| long={ppo_result.long_count}"
 )
+
+records = ppo_result.step_records
+
+average_cash_probability = sum(
+    record.cash_probability
+    for record in records
+) / len(records)
+
+average_long_probability = sum(
+    record.long_probability
+    for record in records
+) / len(records)
+
+average_confidence_margin = sum(
+    record.confidence_margin
+    for record in records
+) / len(records)
+
+average_entropy = sum(
+    record.policy_entropy
+    for record in records
+) / len(records)
+
+low_confidence_steps = sum(
+    1
+    for record in records
+    if record.confidence_margin < 0.10
+)
+
+average_exposure = sum(
+    record.exposure_ratio
+    for record in records
+) / len(records)
+
+print("\nPolicy Summary")
+
+print(
+    f"average probabilities: "
+    f"CASH={average_cash_probability:.3f} "
+    f"| LONG={average_long_probability:.3f}"
+)
+
+print(
+    f"average confidence margin="
+    f"{average_confidence_margin:.3f}"
+)
+
+print(
+    f"average policy entropy="
+    f"{average_entropy:.3f}"
+)
+
+print(
+    f"low-confidence steps="
+    f"{low_confidence_steps}/{len(records)}"
+)
+
+print(
+    f"average market exposure="
+    f"{average_exposure:.3f}"
+)
+
+associations = calculate_feature_policy_associations(
+    ppo_result.step_records
+)
+
+print("\nFeature / Policy Associations")
+
+for association in associations:
+    print(
+        f"{association.feature}: "
+        f"{association.correlation_with_long_probability:+.3f}"
+    )
 
 print("\nTarget Transitions")
 
