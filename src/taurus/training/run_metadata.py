@@ -1,4 +1,8 @@
 import json
+import platform
+import subprocess
+
+from importlib.metadata import version
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,6 +35,22 @@ class TrainingRunMetadata:
     model_path: str
     created_at_utc: str
     test_evaluated: bool
+    python_version: str
+    stable_baselines3_version: str
+    git_commit: str
+
+def get_git_commit() -> str:
+    repository_root = Path(__file__).resolve().parents[3]
+
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", "HEAD"],
+        cwd=repository_root,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    return result.stdout.strip()
 
 
 def build_training_run_metadata(
@@ -81,6 +101,9 @@ def build_training_run_metadata(
             timezone.utc
         ).isoformat(),
         test_evaluated=False,
+        python_version=platform.python_version(),
+        stable_baselines3_version=version("stable-baselines3"),
+        git_commit=get_git_commit(),
     )
 
 

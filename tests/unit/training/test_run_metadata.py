@@ -1,8 +1,12 @@
 import json
+import pytest
+import subprocess
+
 from datetime import date
 from pathlib import Path
+from unittest.mock import Mock
 
-import pytest
+import taurus.training.run_metadata as run_metadata
 
 from taurus.features.presets import DEFAULT_FEATURE_SET
 from taurus.simulation.costs import ExecutionCosts
@@ -14,6 +18,25 @@ from taurus.training.run_metadata import (
     build_training_run_metadata,
     save_training_run_metadata,
 )
+
+
+@pytest.fixture
+def reproducibility_values(monkeypatch):
+    monkeypatch.setattr(
+        run_metadata.platform,
+        "python_version",
+        lambda: "3.11.9",
+    )
+    monkeypatch.setattr(
+        run_metadata,
+        "version",
+        lambda package: "2.7.0",
+    )
+    monkeypatch.setattr(
+        run_metadata,
+        "get_git_commit",
+        lambda: "a" * 40,
+    )
 
 
 def make_config() -> TrainingExperimentConfig:
@@ -37,7 +60,9 @@ def make_config() -> TrainingExperimentConfig:
     )
 
 
-def test_build_training_run_metadata_records_experiment():
+def test_build_training_run_metadata_records_experiment(
+        reproducibility_values,
+):
     metadata = build_training_run_metadata(
         run_name="nvda_ppo_100k",
         algorithm="PPO",
@@ -66,10 +91,14 @@ def test_build_training_run_metadata_records_experiment():
     assert metadata.seed == 42
     assert metadata.feature_set == "default"
     assert metadata.test_evaluated is False
+    assert metadata.python_version == "3.11.9"
+    assert metadata.stable_baselines3_version == "2.7.0"
+    assert metadata.git_commit == "a" * 40
 
 
 def test_save_training_run_metadata_writes_json(
     tmp_path: Path,
+    reproducibility_values,
 ):
     metadata = build_training_run_metadata(
         run_name="nvda_ppo_smoke",
@@ -102,6 +131,9 @@ def test_save_training_run_metadata_writes_json(
     assert stored["algorithm"] == "PPO"
     assert stored["seed"] == 42
     assert stored["test_evaluated"] is False
+    assert stored["python_version"] == "3.11.9"
+    assert stored["stable_baselines3_version"] == "2.7.0"
+    assert stored["git_commit"] == "a" * 40
 
 
 def test_build_training_run_metadata_rejects_invalid_timesteps():
@@ -119,3 +151,38 @@ def test_build_training_run_metadata_rejects_invalid_timesteps():
             action_space_version="target-position-v1",
             model_path=Path("model.zip"),
         )
+
+def test_get_git_commit_uses_repository_root(monkeypatch):
+    commit = "b" * 40
+    run = Mock(
+        return_value=subprocess.CompletedProcess(
+            args=["git", "rev-parse", "--verify", "HEAD"],
+            returncode=0,
+            stdout=f"{commit}\n",
+            stderr="",
+        )
+    )
+    monkeypatch.setattr(run_metadata.subprocess, "run", run)
+
+    assert run_metadata.get_git_commit() == commit
+
+    run.assert_called_once_with(
+        ["git", "rev-parse", "--verify", "HEAD"],
+        cwd=Path(run_metadata.__file__).resolve().parents[3],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+def test_get_git_commit_propagates_failure(monkeypatch):
+    run = Mock(
+        side_effect=subprocess.CalledProcessError(
+            returncode=128,
+            cmd=["git", "rev-parse", "--verify", "HEAD"],
+        )
+    )
+    monkeypatch.setattr(run_metadata.subprocess, "run", run)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        run_metadata.get_git_commit()

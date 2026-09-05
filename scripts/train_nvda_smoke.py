@@ -72,6 +72,17 @@ def ensure_artifact_directory_available() -> None:
 def main() -> None:
     ensure_artifact_directory_available()
 
+    metadata = build_training_run_metadata(
+            run_name=RUN_NAME,
+            algorithm="PPO",
+            config=NVDA_INITIAL_EXPERIMENT,
+            feature_set=FEATURE_SET,
+            costs=EXECUTION_COSTS,
+            total_timesteps=TOTAL_TIMESTEPS,
+            action_space_version=ACTION_SPACE_VERSION,
+            model_path=MODEL_ARTIFACT_PATH,
+        )
+
     repository = SQLitePriceBarRepository(
         DATABASE_PATH
     )
@@ -128,17 +139,6 @@ def main() -> None:
 
     model.save(
         MODEL_SAVE_PATH
-    )
-
-    metadata = build_training_run_metadata(
-        run_name=RUN_NAME,
-        algorithm="PPO",
-        config=NVDA_INITIAL_EXPERIMENT,
-        feature_set=FEATURE_SET,
-        costs=EXECUTION_COSTS,
-        total_timesteps=TOTAL_TIMESTEPS,
-        action_space_version=ACTION_SPACE_VERSION,
-        model_path=MODEL_ARTIFACT_PATH,
     )
 
     save_training_run_metadata(
