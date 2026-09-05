@@ -16,7 +16,7 @@ from taurus.training.training_environment import (
 
 DATABASE_PATH = Path("data/taurus.db")
 
-RUN_NAME = "nvda_ppo_100k"
+RUN_NAME = "nvda_ppo_100k_allocation_v2"
 TOTAL_TIMESTEPS = 100_000
 
 ARTIFACT_DIRECTORY = (
@@ -48,6 +48,7 @@ EXECUTION_COSTS = ExecutionCosts(
 )
 
 ACTION_SPACE_VERSION = "target-position-v1"
+OBSERVATION_VERSION = "allocation-v2"
 
 
 def ensure_artifact_directory_available() -> None:
@@ -81,6 +82,7 @@ def main() -> None:
             total_timesteps=TOTAL_TIMESTEPS,
             action_space_version=ACTION_SPACE_VERSION,
             model_path=MODEL_ARTIFACT_PATH,
+            observation_version=OBSERVATION_VERSION,
         )
 
     repository = SQLitePriceBarRepository(
@@ -93,39 +95,33 @@ def main() -> None:
             config=NVDA_INITIAL_EXPERIMENT,
             feature_set=FEATURE_SET,
             costs=EXECUTION_COSTS,
+            observation_version=OBSERVATION_VERSION,
         )
     )
 
-    print(
-        f"Training {RUN_NAME}"
-    )
-
+    print(f"Training {RUN_NAME}")
+    print(f"observation_version={OBSERVATION_VERSION}")
     print(
         f"symbol="
         f"{NVDA_INITIAL_EXPERIMENT.symbol}"
     )
-
     print(
         f"training="
         f"{NVDA_INITIAL_EXPERIMENT.training.start} "
         f"-> "
         f"{NVDA_INITIAL_EXPERIMENT.training.end}"
     )
-
     print(
         f"timesteps={TOTAL_TIMESTEPS:,}"
     )
-
     print(
         f"seed="
         f"{NVDA_INITIAL_EXPERIMENT.seed}"
     )
-
     print(
         f"commission="
         f"{EXECUTION_COSTS.commission_rate:.4f}"
     )
-
     print(
         f"slippage="
         f"{EXECUTION_COSTS.slippage_rate:.4f}"
