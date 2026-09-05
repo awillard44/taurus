@@ -1,0 +1,146 @@
+from datetime import date, datetime, timezone
+
+from taurus.data.schemas import BarInterval, PriceBar
+from taurus.training.experiment_config import (
+    DateRange,
+    TrainingExperimentConfig,
+)
+from taurus.training.training_environment import (
+    TrainingEnvironment,
+    build_training_environment,
+)
+
+
+class FakeRepository:
+    def __init__(
+        self,
+        bars_by_symbol: dict[str, list[PriceBar]],
+    ):
+        self._bars_by_symbol = bars_by_symbol
+
+    def get_bars(
+        self,
+        symbol: str,
+        interval: BarInterval,
+    ) -> list[PriceBar]:
+        assert interval == BarInterval.ONE_DAY
+        return self._bars_by_symbol[symbol]
+
+
+def make_bars(
+    symbol: str,
+) -> list[PriceBar]:
+    bars = []
+    index = 0
+
+    for year in range(2021, 2027):
+        for month in range(1, 13):
+            for day in range(1, 21):
+                price = 100.0 + index
+
+                bars.append(
+                    PriceBar(
+                        symbol=symbol,
+                        timestamp=datetime(
+                            year,
+                            month,
+                            day,
+                            tzinfo=timezone.utc,
+                        ),
+                        open=price,
+                        high=price + 1.0,
+                        low=price - 1.0,
+                        close=price,
+                        volume=1_000_000.0,
+                        source="test",
+                        interval=BarInterval.ONE_DAY,
+                    )
+                )
+
+                index += 1
+
+    return bars
+
+
+def test_build_training_environment_returns_training_wrapper():
+    repository = FakeRepository(
+        {
+            "NVDA": make_bars("NVDA"),
+            "SPY": make_bars("SPY"),
+        }
+    )
+
+    config = TrainingExperimentConfig(
+        name="nvda_initial",
+        symbol="NVDA",
+        benchmark_symbol="SPY",
+        training=DateRange(
+            start=date(2022, 1, 1),
+            end=date(2024, 12, 31),
+        ),
+        validation=DateRange(
+            start=date(2025, 1, 1),
+            end=date(2025, 12, 31),
+        ),
+        test=DateRange(
+            start=date(2026, 1, 1),
+            end=date(2026, 8, 21),
+        ),
+        seed=42,
+    )
+
+    result = build_training_environment(
+        repository=repository,
+        config=config,
+    )
+
+    assert isinstance(
+        result,
+        TrainingEnvironment,
+    )
+
+
+def test_training_environment_contains_only_training_dates():
+    repository = FakeRepository(
+        {
+            "NVDA": make_bars("NVDA"),
+            "SPY": make_bars("SPY"),
+        }
+    )
+
+    config = TrainingExperimentConfig(
+        name="nvda_initial",
+        symbol="NVDA",
+        benchmark_symbol="SPY",
+        training=DateRange(
+            start=date(2022, 1, 1),
+            end=date(2024, 12, 31),
+        ),
+        validation=DateRange(
+            start=date(2025, 1, 1),
+            end=date(2025, 12, 31),
+        ),
+        test=DateRange(
+            start=date(2026, 1, 1),
+            end=date(2026, 8, 21),
+        ),
+        seed=42,
+    )
+
+    result = build_training_environment(
+        repository=repository,
+        config=config,
+    )
+
+    timestamps = [
+        state.market.timestamp.date()
+        for state in (
+            result.environment
+            .taurus_environment
+            .feature_states
+        )
+    ]
+
+    assert timestamps
+    assert min(timestamps) >= config.training.start
+    assert max(timestamps) <= config.training.end

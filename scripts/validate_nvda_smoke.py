@@ -1,0 +1,143 @@
+from pathlib import Path
+
+from stable_baselines3 import PPO
+
+from taurus.data.sqlite_repository import (
+    SQLitePriceBarRepository,
+)
+from taurus.evaluation.baseline_runner import (
+    compare_baselines,
+)
+from taurus.models.baselines.always_buy import (
+    AlwaysBuyAgent,
+)
+from taurus.models.baselines.always_hold import (
+    AlwaysHoldAgent,
+)
+from taurus.models.baselines.momentum import (
+    MomentumAgent,
+)
+from taurus.training.ppo_evaluator import evaluate_ppo
+from taurus.training.presets import NVDA_INITIAL_EXPERIMENT
+from taurus.training.validation_environment import (
+    build_validation_environment,
+)
+from taurus.training.environment_builder import (
+    build_experiment_environment,
+)
+
+
+database_path = Path("data/taurus.db")
+
+model_path = Path(
+    "artifacts/training/nvda_ppo_smoke_v2/model.zip"
+)
+
+repository = SQLitePriceBarRepository(
+    database_path,
+)
+
+validation_environment = build_validation_environment(
+    repository=repository,
+    config=NVDA_INITIAL_EXPERIMENT,
+)
+
+model = PPO.load(
+    model_path,
+)
+
+ppo_result = evaluate_ppo(
+    model=model,
+    validation_environment=validation_environment,
+)
+
+print("\nNVDA PPO - 2025 validation")
+print(
+    f"final=${ppo_result.final_portfolio_value:.2f} "
+    f"| return={ppo_result.total_return:.4f} "
+    f"| reward={ppo_result.total_reward:.4f} "
+    f"| steps={ppo_result.steps}"
+)
+
+print(
+    f"targets: "
+    f"cash={ppo_result.cash_count} "
+    f"| long={ppo_result.long_count}"
+)
+
+print("\nTarget Transitions")
+
+for transition in ppo_result.transitions:
+    previous = (
+        "CASH"
+        if transition.previous_target == 0
+        else "LONG"
+    )
+
+    new = (
+        "CASH"
+        if transition.new_target == 0
+        else "LONG"
+    )
+
+    print(
+        f"\n{transition.timestamp.date()} "
+        f"{previous} -> {new}"
+    )
+
+    print(
+        f" portfolio=${transition.portfolio_value:.2f} "
+        f"| NVDA=${transition.asset_price:.2f}"
+    )
+
+    print(
+        f"  policy: "
+        f"CASH={transition.cash_probability:.3f} "
+        f"| LONG={transition.long_probability:.3f}"
+    )
+
+    raw_features = dict(
+        transition.feature_values
+    )
+
+    normalized_features = dict(
+        transition.normalized_feature_values
+    )
+
+    print("  features:")
+
+    for key, raw_value in raw_features.items():
+        normalized_value = normalized_features[key]
+
+        print(
+           f"    {key}: "
+           f"raw={raw_value:.6f} "
+           f"| normalized={normalized_value:.6f}" 
+        )
+
+baseline_environment = build_experiment_environment(
+    repository=repository,
+    config=NVDA_INITIAL_EXPERIMENT,
+    split="validation",
+)
+
+agents = {
+    "always_hold": AlwaysHoldAgent(),
+    "always_buy": AlwaysBuyAgent(),
+    "momentum": MomentumAgent(),
+}
+
+baseline_results = compare_baselines(
+    environment=baseline_environment,
+    agents=agents,
+)
+
+print("\nBaselines")
+
+for name, result in baseline_results.items():
+    print(
+        f"{name}: "
+        f"${result.final_portfolio_value:.2f} "
+        f"| return={result.total_return:.4f} "
+        f"| reward={result.total_reward:.4f}"
+    )
