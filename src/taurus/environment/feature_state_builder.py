@@ -79,6 +79,7 @@ def build_feature_state_sequence(
         feature_state = FeatureEnvironmentState(
             market=market_state,
             features=features,
+            open_price=current_bars[-1].open,
         )
 
         feature_states.append(feature_state)

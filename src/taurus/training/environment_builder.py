@@ -13,6 +13,7 @@ from taurus.features.config import FeatureSetConfig
 from taurus.features.presets import DEFAULT_FEATURE_SET
 from taurus.simulation.costs import ExecutionCosts
 from taurus.simulation.portfolio import PortfolioState
+from taurus.simulation.step import ExecutionVersion
 from taurus.training.experiment_config import (
     DateRange,
     TrainingExperimentConfig,
@@ -55,6 +56,7 @@ def build_experiment_environment(
         slippage_rate=0.001,
     ),
     observation_version: ObservationVersion = "initial-capital-v1",
+    execution_version: ExecutionVersion = "same-close-v1",
 ) -> TaurusTradingEnvironment:
     if minimum_history <= 0:
         raise ValueError("Minimum history must be positive.")
@@ -123,4 +125,5 @@ def build_experiment_environment(
         initial_portfolio=initial_portfolio,
         costs=costs,
         observation_version=observation_version,
+        execution_version=execution_version,
     )

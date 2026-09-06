@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal
 
 from taurus.simulation.actions import TradingAction
 from taurus.simulation.execution import execute_action
@@ -9,6 +10,11 @@ from taurus.simulation.trade import Trade
 from taurus.simulation.valuation import revalue_portfolio
 from taurus.simulation.costs import ExecutionCosts
 
+
+ExecutionVersion = Literal[
+    "same-close-v1",
+    "next-open-v2",
+]
 
 @dataclass(frozen=True)
 class StepResult:
@@ -23,11 +29,30 @@ def step_portfolio(
     next_asset_price: float,
     timestamp,
     costs: ExecutionCosts = ExecutionCosts(),
+    execution_version: ExecutionVersion = "same-close-v1",
+    next_open_price: float | None = None,
 ) -> StepResult:
-    # Apply an action, advance the market, and calculate reward
+    if execution_version == "same-close-v1":
+        execution_state = state
+
+    elif execution_version == "next-open-v2":
+        if next_open_price is None:
+            raise ValueError(
+                "Next-open execution requires next_open_price."
+            )
+
+        execution_state = revalue_portfolio(
+            state=state,
+            new_asset_price=next_open_price,
+        )
+
+    else:
+        raise ValueError(
+            f"Unsupported execution version: {execution_version}"
+        )
 
     execution_result = execute_action(
-        state=state,
+        state=execution_state,
         action=action,
         timestamp=timestamp,
         costs=costs,

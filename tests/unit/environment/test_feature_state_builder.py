@@ -256,3 +256,27 @@ def test_build_feature_state_sequence_requires_matching_intervals():
             feature_set=DEFAULT_FEATURE_SET,
             minimum_history=50,
         )
+
+def test_feature_states_preserve_matching_open_prices():
+    asset_bars, benchmark_bars = build_test_bars(count=60)
+
+    states = build_feature_state_sequence(
+        bars=asset_bars,
+        benchmark_bars=benchmark_bars,
+        feature_set=DEFAULT_FEATURE_SET,
+        minimum_history=50,
+    )
+
+    matching_bars = asset_bars[49:]
+
+    assert len(states) == len(matching_bars)
+
+    for state, bar in zip(states, matching_bars, strict=True):
+        assert state.market.timestamp == bar.timestamp
+        assert state.open_price == bar.open
+
+        # This fixture deliberately uses different opening/closing prices.
+        assert state.open_price != state.market.close
+
+        # Execution data is not added to the model's feature dictionary.
+        assert "open_price" not in state.features

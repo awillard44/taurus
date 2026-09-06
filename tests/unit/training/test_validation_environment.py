@@ -106,7 +106,10 @@ def test_build_validation_environment_returns_validation_wrapper():
         ValidationEnvironment,
     )
 
-
+@pytest.mark.parametrize(
+    "execution_version",
+    ["same-close-v1", "next-open-v2"],
+)
 @pytest.mark.parametrize(
     "observation_version, portfolio_input_count",
     [
@@ -117,6 +120,7 @@ def test_build_validation_environment_returns_validation_wrapper():
 def test_validation_environment_contains_only_validation_dates(
     observation_version,
     portfolio_input_count,
+    execution_version,
 ):
     config = make_config()
 
@@ -124,6 +128,7 @@ def test_validation_environment_contains_only_validation_dates(
         repository=make_repository(),
         config=config,
         observation_version=observation_version,
+        execution_version=execution_version,
     )
 
     timestamps = [
@@ -143,6 +148,7 @@ def test_validation_environment_contains_only_validation_dates(
     underlying = environment.taurus_environment
 
     assert underlying.observation_version == observation_version
+    assert underlying.execution_version == execution_version
 
     expected_size = (
         len(underlying.feature_states[0].features)
@@ -158,8 +164,24 @@ def test_validation_environment_contains_only_validation_dates(
     assert environment.observation_space.contains(observation)
 
     # Target-position action 1 means LONG
-    observation, _, _, _, _ = environment.step(1)
+    observation, _, _, _, info = environment.step(1)
 
     assert observation.shape == (expected_size,)
     assert np.isfinite(observation).all()
     assert environment.observation_space.contains(observation)
+
+    trade = info["trade"]
+    assert trade is not None
+
+    if execution_version == "next-open-v2":
+        execution_state = underlying.feature_states[1]
+        reference_price = execution_state.open_price
+        assert reference_price is not None
+    else:
+        execution_state = underlying.feature_states[0]
+        reference_price = execution_state.market.close
+
+    assert trade.timestamp == execution_state.market.timestamp
+    assert trade.price == pytest.approx(
+        reference_price * (1.0 + underlying.costs.slippage_rate)
+    )

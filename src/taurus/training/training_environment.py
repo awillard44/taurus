@@ -8,6 +8,7 @@ from taurus.environment.trading_environment import (
 from taurus.features.config import FeatureSetConfig
 from taurus.features.presets import DEFAULT_FEATURE_SET
 from taurus.simulation.costs import ExecutionCosts
+from taurus.simulation.step import ExecutionVersion
 from taurus.training.environment_builder import (
     build_experiment_environment,
 )
@@ -35,6 +36,7 @@ def build_training_environment(
         slippage_rate=0.001,
     ),
     observation_version: ObservationVersion = "initial-capital-v1",
+    execution_version: ExecutionVersion = "same-close-v1",
 ) -> TrainingEnvironment:
     environment = build_experiment_environment(
         repository=repository,
@@ -45,6 +47,7 @@ def build_training_environment(
         initial_cash=initial_cash,
         costs=costs,
         observation_version=observation_version,
+        execution_version=execution_version,
     )
 
     target_position_environment = TargetPositionEnvironment(

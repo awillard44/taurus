@@ -49,6 +49,7 @@ def main(argv=None) -> None:
         config=config,
         feature_set=DEFAULT_FEATURE_SET,
         costs=costs,
+        observation_version=observation_version,
     )
 
     model = PPO.load(model_path)
@@ -69,6 +70,7 @@ def main(argv=None) -> None:
         split="training",
         feature_set=DEFAULT_FEATURE_SET,
         costs=costs,
+        observation_version=observation_version,
     )
 
     baseline_result = run_agent_episode(
@@ -173,6 +175,7 @@ def main(argv=None) -> None:
                 initial_portfolio_value=(
                     ppo_result.initial_portfolio_value
                 ),
+                observation_version=observation_version,
             )
         )
 
@@ -208,6 +211,57 @@ def main(argv=None) -> None:
                 f" | P(LONG) when LONG={long_state_long:.4f}"
             )
 
+    print("\nPolicy during the largest recorded drawdown")
+
+    peak_index = 0
+    largest_drawdown = 0.0
+    drawdown_peak_index = 0
+    trough_index = 0
+
+    for index, record in enumerate(records):
+        if record.portfolio_value > records[peak_index].portfolio_value:
+            peak_index = index
+
+        peak_value = records[peak_index].portfolio_value
+        drawdown = (peak_value - record.portfolio_value) / peak_value
+
+        if drawdown > largest_drawdown:
+            largest_drawdown = drawdown
+            drawdown_peak_index = peak_index
+            trough_index = index
+
+    print(
+        f"Drawdown across recorded pre-action states: "
+        f"{largest_drawdown:.2%}"
+    )
+
+    sample_indices = sorted({
+        drawdown_peak_index,
+        (drawdown_peak_index + trough_index) // 2,
+        trough_index,
+    })
+
+    for index in sample_indices:
+        record = records[index]
+
+        cash_long, invested_long = (
+            compare_portfolio_state_probabilities(
+                model=model,
+                record=record,
+                initial_portfolio_value=ppo_result.initial_portfolio_value,
+                account_value=1000.0,
+                observation_version=observation_version,
+            )
+        )
+
+        print(
+            f"{record.timestamp.date()}"
+            f" | portfolio=${record.portfolio_value:.2f}"
+            f" | NVDA=${record.asset_price:.2f}"
+            f" | actual P(LONG)={record.long_probability:.4f}"
+            f" | fixed CASH P(LONG)={cash_long:.4f}"
+            f" | fixed LONG P(LONG)={invested_long:.4f}"
+        )
 
 if __name__ == "__main__":
     main()

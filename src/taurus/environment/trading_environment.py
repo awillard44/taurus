@@ -11,7 +11,10 @@ from taurus.environment.observation import (
 from taurus.environment.state import EnvironmentState
 from taurus.simulation.actions import TradingAction
 from taurus.simulation.portfolio import PortfolioState
-from taurus.simulation.step import step_portfolio
+from taurus.simulation.step import (
+    step_portfolio,
+    ExecutionVersion,
+)
 from taurus.simulation.costs import ExecutionCosts
 
 
@@ -26,9 +29,18 @@ class TaurusTradingEnvironment(gym.Env):
         initial_portfolio: PortfolioState,
         costs: ExecutionCosts = ExecutionCosts(),
         observation_version: ObservationVersion = "initial-capital-v1",
+        execution_version: ExecutionVersion = "same-close-v1",
     ):
         self.costs = costs
         super().__init__()
+
+        if execution_version not in (
+            "same-close-v1",
+            "next-open-v2",
+        ):
+            raise ValueError(f"Unsupported execution version: {execution_version}")
+
+        self.execution_version = execution_version
 
         if observation_version not in (
             "initial-capital-v1",
@@ -128,12 +140,27 @@ class TaurusTradingEnvironment(gym.Env):
             next_feature_state.market
         )
 
+        if self.execution_version == "next-open-v2":
+            if next_feature_state.open_price is None:
+                raise ValueError(
+                    "Next-open execution requires an opening price "
+                    "for the next trading day."
+                )
+
+            execution_timestamp = next_market.timestamp
+            next_open_price = next_feature_state.open_price
+        else:
+            execution_timestamp = current_market.timestamp
+            next_open_price = None
+
         step_result = step_portfolio(
             state=self.state.portfolio,
             action=trading_action,
             next_asset_price=next_market.close,
-            timestamp=current_market.timestamp,
+            timestamp=execution_timestamp,
             costs=self.costs,
+            execution_version=self.execution_version,
+            next_open_price=next_open_price,
         )
 
         self.current_index += 1

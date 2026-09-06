@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from datetime import datetime, timedelta
+from dataclasses import replace
 
 from taurus.data.schemas import BarInterval
 from taurus.environment.observation import ObservationVersion
@@ -251,3 +252,141 @@ def test_environment_rejects_unknown_observation_version():
         match="Unsupported observation version",
     ):
         build_test_environment("unknown")
+
+def test_next_open_environment_uses_next_day_open():
+    monday = datetime(2024, 1, 8)
+    tuesday = datetime(2024, 1, 9)
+
+    feature_states = [
+        FeatureEnvironmentState(
+            market=build_market_state(
+                timestamp=monday,
+                close=100.0,
+            ),
+            features={"return_1": 0.01},
+            open_price=95.0,
+        ),
+        FeatureEnvironmentState(
+            market=build_market_state(
+                timestamp=tuesday,
+                close=105.0,
+            ),
+            features={"return_1": 0.05},
+            open_price=110.0,
+        ),
+    ]
+
+    environment = TaurusTradingEnvironment(
+        feature_states=feature_states,
+        initial_portfolio=PortfolioState(
+            cash=1000.0,
+            shares=0.0,
+            asset_price=100.0,
+            portfolio_value=1000.0,
+        ),
+        observation_version="allocation-v2",
+        execution_version="next-open-v2",
+    )
+
+    observation, _ = environment.reset()
+
+    # Monday's feature and all-CASH allocation.
+    np.testing.assert_allclose(
+        observation,
+        [0.01, 1.0, 0.0],
+    )
+
+    observation, reward, terminated, truncated, info = (
+        environment.step(TradingAction.BUY)
+    )
+
+    expected_shares = 1000.0 / 110.0
+    expected_value = expected_shares * 105.0
+
+    assert info["trade"] is not None
+    assert info["trade"].price == pytest.approx(110.0)
+    assert info["trade"].timestamp == tuesday
+
+    assert environment.state.portfolio.shares == pytest.approx(
+        expected_shares
+    )
+    assert environment.state.portfolio.portfolio_value == pytest.approx(
+        expected_value
+    )
+    assert reward == pytest.approx(
+        (expected_value - 1000.0) / 1000.0
+    )
+
+    # Tuesday's feature is returned only after the action executes.
+    np.testing.assert_allclose(
+        observation,
+        [0.05, 0.0, 1.0],
+    )
+    assert environment.observation_space.contains(observation)
+    assert terminated
+    assert not truncated
+
+def test_next_open_environment_rejects_missing_open_price():
+    legacy_environment = build_test_environment()
+
+    # The existing fixture has no opening prices.
+    environment = TaurusTradingEnvironment(
+        feature_states=legacy_environment.feature_states,
+        initial_portfolio=legacy_environment.initial_portfolio,
+        execution_version="next-open-v2",
+    )
+
+    environment.reset()
+    original_state = environment.state
+
+    with pytest.raises(
+        ValueError,
+        match="requires an opening price",
+    ):
+        environment.step(TradingAction.BUY)
+
+    # A failed step must not advance time or change the portfolio.
+    assert environment.current_index == 0
+    assert environment.state == original_state
+
+def test_future_data_does_not_change_current_observation():
+    fixture = build_test_environment()
+    original_states = fixture.feature_states
+
+    changed_states = list(original_states)
+    tomorrow = original_states[1]
+
+    changed_states[1] = replace(
+        tomorrow,
+        open_price=500.0,
+        market=replace(
+            tomorrow.market,
+            close=600.0,
+        ),
+        features={
+            key: value + 10.0
+            for key, value in tomorrow.features.items()
+        },
+    )
+
+    original_environment = TaurusTradingEnvironment(
+        feature_states=original_states,
+        initial_portfolio=fixture.initial_portfolio,
+        observation_version="allocation-v2",
+        execution_version="next-open-v2",
+    )
+
+    changed_environment = TaurusTradingEnvironment(
+        feature_states=changed_states,
+        initial_portfolio=fixture.initial_portfolio,
+        observation_version="allocation-v2",
+        execution_version="next-open-v2",
+    )
+
+    original_observation, _ = original_environment.reset()
+    changed_observation, _ = changed_environment.reset()
+
+    np.testing.assert_array_equal(
+        original_observation,
+        changed_observation,
+    )
